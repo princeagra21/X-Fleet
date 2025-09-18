@@ -1,6 +1,6 @@
 import { OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '../../generated/prisma';
+import { PrismaClient } from '../../generated/prisma-primary';
 export declare class PrimaryDatabaseService extends PrismaClient implements OnModuleInit {
     private configService;
     constructor(configService: ConfigService);

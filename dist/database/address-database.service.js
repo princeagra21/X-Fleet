@@ -12,8 +12,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AddressDatabaseService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
-const prisma_1 = require("../../generated/prisma");
-let AddressDatabaseService = class AddressDatabaseService extends prisma_1.PrismaClient {
+const prisma_address_1 = require("../../generated/prisma-address");
+let AddressDatabaseService = class AddressDatabaseService extends prisma_address_1.PrismaClient {
     configService;
     constructor(configService) {
         const databaseUrl = configService.get('database.address.url');
@@ -29,10 +29,10 @@ let AddressDatabaseService = class AddressDatabaseService extends prisma_1.Prism
     async onModuleInit() {
         try {
             await this.$connect();
-            console.log('Address database connected successfully');
+            console.log('Address database (FleetStack_Address) connected successfully');
         }
         catch (error) {
-            console.error('Failed to connect to address database:', error);
+            console.error('Failed to connect to address database (FleetStack_Address):', error);
         }
     }
     async onModuleDestroy() {
@@ -44,7 +44,7 @@ let AddressDatabaseService = class AddressDatabaseService extends prisma_1.Prism
             return true;
         }
         catch (error) {
-            console.error('Address database health check failed:', error);
+            console.error('Address database (FleetStack_Address) health check failed:', error);
             return false;
         }
     }

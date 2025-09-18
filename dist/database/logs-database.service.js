@@ -12,8 +12,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LogsDatabaseService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
-const prisma_1 = require("../../generated/prisma");
-let LogsDatabaseService = class LogsDatabaseService extends prisma_1.PrismaClient {
+const prisma_logs_1 = require("../../generated/prisma-logs");
+let LogsDatabaseService = class LogsDatabaseService extends prisma_logs_1.PrismaClient {
     configService;
     constructor(configService) {
         const databaseUrl = configService.get('database.logs.url');
@@ -29,10 +29,10 @@ let LogsDatabaseService = class LogsDatabaseService extends prisma_1.PrismaClien
     async onModuleInit() {
         try {
             await this.$connect();
-            console.log('Logs database connected successfully');
+            console.log('Logs database (FleetStack_logs) connected successfully');
         }
         catch (error) {
-            console.error('Failed to connect to logs database:', error);
+            console.error('Failed to connect to logs database (FleetStack_logs):', error);
         }
     }
     async onModuleDestroy() {
@@ -44,7 +44,7 @@ let LogsDatabaseService = class LogsDatabaseService extends prisma_1.PrismaClien
             return true;
         }
         catch (error) {
-            console.error('Logs database health check failed:', error);
+            console.error('Logs database (FleetStack_logs) health check failed:', error);
             return false;
         }
     }
