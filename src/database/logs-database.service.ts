@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '../../generated/prisma';
+import { PrismaClient } from '../../generated/prisma-logs';
 
 @Injectable()
 export class LogsDatabaseService extends PrismaClient implements OnModuleInit {
@@ -18,9 +18,9 @@ export class LogsDatabaseService extends PrismaClient implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.$connect();
-      console.log('Logs database connected successfully');
+      console.log('Logs database (FleetStack_logs) connected successfully');
     } catch (error) {
-      console.error('Failed to connect to logs database:', error);
+      console.error('Failed to connect to logs database (FleetStack_logs):', error);
     }
   }
 
@@ -33,7 +33,7 @@ export class LogsDatabaseService extends PrismaClient implements OnModuleInit {
       await this.$queryRaw`SELECT 1`;
       return true;
     } catch (error) {
-      console.error('Logs database health check failed:', error);
+      console.error('Logs database (FleetStack_logs) health check failed:', error);
       return false;
     }
   }
