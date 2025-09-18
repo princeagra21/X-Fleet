@@ -1,51 +1,51 @@
 export declare const databaseConfig: (() => {
     primary: {
-        host: string;
+        host: string | undefined;
         port: number;
-        username: string;
-        password: string;
+        username: string | undefined;
+        password: string | undefined;
         database: string;
-        url: string;
+        url: string | undefined;
     };
     logs: {
-        host: string;
+        host: string | undefined;
         port: number;
-        username: string;
-        password: string;
+        username: string | undefined;
+        password: string | undefined;
         database: string;
-        url: string;
+        url: string | undefined;
     };
     address: {
-        host: string;
+        host: string | undefined;
         port: number;
-        username: string;
-        password: string;
+        username: string | undefined;
+        password: string | undefined;
         database: string;
-        url: string;
+        url: string | undefined;
     };
 }) & import("@nestjs/config").ConfigFactoryKeyHost<{
     primary: {
-        host: string;
+        host: string | undefined;
         port: number;
-        username: string;
-        password: string;
+        username: string | undefined;
+        password: string | undefined;
         database: string;
-        url: string;
+        url: string | undefined;
     };
     logs: {
-        host: string;
+        host: string | undefined;
         port: number;
-        username: string;
-        password: string;
+        username: string | undefined;
+        password: string | undefined;
         database: string;
-        url: string;
+        url: string | undefined;
     };
     address: {
-        host: string;
+        host: string | undefined;
         port: number;
-        username: string;
-        password: string;
+        username: string | undefined;
+        password: string | undefined;
         database: string;
-        url: string;
+        url: string | undefined;
     };
 }>;
