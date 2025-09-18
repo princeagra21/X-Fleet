@@ -3,7 +3,8 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  await app.listen(5000, '0.0.0.0');
-  console.log('NestJS backend is running on http://0.0.0.0:5000');
+  const port = process.env.PORT || 3001;
+  await app.listen(port, '0.0.0.0');
+  console.log(`NestJS backend is running on http://0.0.0.0:${port}`);
 }
 bootstrap();
