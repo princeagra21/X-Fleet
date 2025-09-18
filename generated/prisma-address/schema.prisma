@@ -1,0 +1,86 @@
+// Address Database Schema - FleetStack_Address
+// Location and address-related tables
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma-address"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("ADDRESS_DATABASE_URL")
+}
+
+model Address {
+  id          Int         @id @default(autoincrement())
+  street      String
+  city        String
+  state       String
+  zipCode     String      @map("zip_code")
+  country     String      @default("USA")
+  latitude    Float?
+  longitude   Float?
+  isVerified  Boolean     @default(false) @map("is_verified")
+  addressType AddressType @default(OTHER) @map("address_type")
+
+  // Relations
+  locations Location[]
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("addresses")
+}
+
+model Location {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+
+  // Foreign Keys
+  addressId Int @map("address_id")
+
+  // Relations
+  address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+  // Location tracking - Routes that start from this location
+  routesAsStart Route[] @relation("RouteStart")
+
+  // Routes that end at this location
+  routesAsEnd Route[] @relation("RouteEnd")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("locations")
+}
+
+model Route {
+  id              Int     @id @default(autoincrement())
+  name            String
+  startLocationId Int     @map("start_location_id")
+  endLocationId   Int     @map("end_location_id")
+  distance        Float? // in miles
+  estimatedTime   Int?    @map("estimated_time") // in minutes
+  isActive        Boolean @default(true) @map("is_active")
+
+  // Relations
+  startLocation Location @relation("RouteStart", fields: [startLocationId], references: [id])
+  endLocation   Location @relation("RouteEnd", fields: [endLocationId], references: [id])
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("routes")
+}
+
+enum AddressType {
+  HOME
+  WORK
+  WAREHOUSE
+  SERVICE_CENTER
+  OTHER
+}

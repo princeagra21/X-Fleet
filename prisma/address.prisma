@@ -44,8 +44,11 @@ model Location {
   // Relations
   address     Address  @relation(fields: [addressId], references: [id], onDelete: Cascade)
   
-  // Location tracking
-  routes      Route[]
+  // Location tracking - Routes that start from this location
+  routesAsStart Route[] @relation("RouteStart")
+  
+  // Routes that end at this location
+  routesAsEnd   Route[] @relation("RouteEnd")
   
   // Timestamps
   createdAt   DateTime @default(now()) @map("created_at")

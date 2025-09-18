@@ -1,0 +1,71 @@
+// Logs Database Schema - FleetStack_logs  
+// Logging and audit trail tables
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma-logs"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("LOGS_DATABASE_URL")
+}
+
+model SystemLog {
+  id        Int      @id @default(autoincrement())
+  level     LogLevel
+  message   String
+  module    String?
+  userId    Int?     @map("user_id")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("system_logs")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  tableName String   @map("table_name")
+  recordId  String   @map("record_id")
+  oldValues Json?    @map("old_values")
+  newValues Json?    @map("new_values")
+  userId    Int?     @map("user_id")
+  userName  String?  @map("user_name")
+  timestamp DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model ErrorLog {
+  id         Int           @id @default(autoincrement())
+  errorCode  String?       @map("error_code")
+  message    String
+  stack      String?
+  url        String?
+  method     String?
+  userId     Int?          @map("user_id")
+  severity   ErrorSeverity @default(MEDIUM)
+  resolved   Boolean       @default(false)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  resolvedAt DateTime?     @map("resolved_at")
+
+  @@map("error_logs")
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+enum ErrorSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
