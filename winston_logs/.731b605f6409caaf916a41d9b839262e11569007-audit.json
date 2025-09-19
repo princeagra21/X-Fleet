@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "winston_logs\\.731b605f6409caaf916a41d9b839262e11569007-audit.json",
+    "files": [
+        {
+            "date": 1758265027053,
+            "name": "winston_logs\\exceptions-2025-09-19.log",
+            "hash": "3784c8148228bf6f7483d77a5f6fd8984639e23de706a55b094d3ab0ccfed295"
+        }
+    ],
+    "hashType": "sha256"
+}
