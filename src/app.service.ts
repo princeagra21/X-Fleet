@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrimaryDatabaseService } from './database/primary-database.service';
-import { Country, State , City   } from 'country-state-city';
+import { Country, State, City } from 'country-state-city';
 
 @Injectable()
 export class AppService {
 
-   constructor(
-      private readonly primaryDb: PrimaryDatabaseService
-      ,     
-    ) {}
+  constructor(
+    private readonly primaryDb: PrimaryDatabaseService
+    ,
+  ) { }
 
 
 
@@ -16,27 +16,30 @@ export class AppService {
     return 'Hello World!';
   }
 
+
+
+
   getDeviceTypes() {
     return this.primaryDb.deviceType.findMany({
-    select: {
-       id: true,
-      name: true,
-      port: true,
-    },
-  });
+      select: {
+        id: true,
+        name: true,
+        port: true,
+      },
+    });
   }
 
   getVehicleTypes() {
     return this.primaryDb.vehicleType.findMany({
-    select: {
-       id: true,
-      name: true,
-    },
-  });
+      select: {
+        id: true,
+        name: true,
+      },
+    });
   }
 
-  getMobileCode(){
-      const countries = Country.getAllCountries();
+  getMobileCode() {
+    const countries = Country.getAllCountries();
 
     // Format into the expected JSON structure
     return countries.map(c => ({
@@ -45,15 +48,15 @@ export class AppService {
     }));
   }
 
-  getCountries(){
-      const countries = Country.getAllCountries();
-      return countries.map(c => ({
-        name: c.name,               // e.g., "India", "United States"
-        isoCode: c.isoCode   
-      }));
+  getCountries() {
+    const countries = Country.getAllCountries();
+    return countries.map(c => ({
+      name: c.name,               // e.g., "India", "United States"
+      isoCode: c.isoCode
+    }));
   }
 
-   getStatesByCountry(countryCode: string) {
+  getStatesByCountry(countryCode: string) {
     const states = State.getStatesOfCountry(countryCode.toUpperCase());
 
     return states.map(s => ({
@@ -63,7 +66,7 @@ export class AppService {
   }
 
 
-   getCitiesByState(countryCode: string, stateCode: string) {
+  getCitiesByState(countryCode: string, stateCode: string) {
     const cities = City.getCitiesOfState(countryCode.toUpperCase(), stateCode.toUpperCase());
 
     return cities.map(c => ({

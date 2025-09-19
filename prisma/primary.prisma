@@ -150,7 +150,7 @@ model User {
   addressId        Int?
 
   name             String
-  email            String   @unique
+  email            String?   @unique
   isEmailVerified  Boolean  @default(false)
 
   mobilePrefix     String?
@@ -213,7 +213,7 @@ model Address {
   stateCode    String
   cityId       String
   addressLine  String
-  pincode      String
+  pincode      String?
   fullAddress  String
 
   users        User[]

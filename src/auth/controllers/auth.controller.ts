@@ -1,18 +1,30 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
-import { RegisterDto } from '../dto/register.dto';
+//import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { AuthResponseDto } from '../dto/auth-response.dto';
+import { CreateSuperAdminDto } from '../dto/superadmin.dto';
 
 //@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
     constructor(private authService: AuthService) { }
 
-    @Post('register')
-    async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
-        return this.authService.register(registerDto);
+    @Get('checksadmin')
+    getChecksAdmin() {
+        return this.authService.getChecksAdmin();
     }
+
+
+    @Post('createsuperadmin')
+    async createSuperAdmin(@Body() superadminDto: CreateSuperAdminDto): Promise<any> {
+        return this.authService.createSuperAdmin(superadminDto);
+    }
+
+    // @Post('register')
+    // async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
+    //     return this.authService.register(registerDto);
+    // }
 
     @Post('login')
     @HttpCode(HttpStatus.OK)

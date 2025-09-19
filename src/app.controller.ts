@@ -10,6 +10,8 @@ export class AppController {
     return this.appService.getHello();
   }
 
+
+
 @Get('devicestypes')
 getDeviceTypes() {
   return this.appService.getDeviceTypes();   

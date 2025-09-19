@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { databaseConfig } from './config/database.config';
 import { AuthModule } from './auth/auth.module';
+import { SuperadminModule } from './superadmin/superadmin.module';
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { AuthModule } from './auth/auth.module';
     }),
     DatabaseModule,
     HealthModule,
-    AuthModule
+    AuthModule,
+    SuperadminModule
   ],
   controllers: [AppController],
   providers: [AppService],
