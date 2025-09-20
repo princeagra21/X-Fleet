@@ -65,3 +65,6 @@ prisma/migrations/
 # Temporary folders
 tmp/
 temp/
+
+# Uploaded files
+uploads/
