@@ -14,6 +14,11 @@
             "date": 1758343908692,
             "name": "winston_logs\\rejections-2025-09-20.log",
             "hash": "f417bf84e81f4cce082b33a42b0fcda0d0ede739d12c9967fdabaf2a63b418ec"
+        },
+        {
+            "date": 1758393840676,
+            "name": "winston_logs\\rejections-2025-09-21.log",
+            "hash": "65957bf6bb135cfb073b9d59117ed9a67b605eca4fad83a5dd6801a29ccfc57e"
         }
     ],
     "hashType": "sha256"

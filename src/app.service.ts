@@ -75,5 +75,24 @@ export class AppService {
       countryCode: c.countryCode,
     }));
   }
+  getCurrencies() {
+    const countries = Country.getAllCountries();
+    // Extract unique currencies
+    const currencyMap: Record<string, { code: string; name: string }> = {};
+    countries.forEach(c => {
+      // runtime objects from `country-state-city` may have different typings; use safe access
+      const cc = (c as any).currencyCode ?? (c as any).currency ?? (c as any).currency_code;
+      if (!cc) return;
+      if (!currencyMap[cc]) {
+        const name = (c as any).currencyName ?? (c as any).currency_name ?? cc;
+       // const symbol = (c as any).currencySymbol ?? (c as any).currency_symbol ?? '';
+        currencyMap[cc] = { code: cc, name };
+      }
+    });
+
+    // Convert map to array and sort by currency name
+    const currencies = Object.values(currencyMap).sort((a, b) => a.name.localeCompare(b.name));
+    return currencies;
+  }
 
 }

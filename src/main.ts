@@ -7,10 +7,13 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { ValidationPipe } from './common/pipes/validation.pipe';
 import { ValidationPipe as NestValidationPipe } from '@nestjs/common';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import * as path from 'node:path';
 
 async function bootstrap() {
-  
-    const app = await NestFactory.create<NestFastifyApplication>(
+
+  const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
     {
@@ -19,12 +22,32 @@ async function bootstrap() {
   );
 
 
-   app.use(securityConfig.helmet);
+
+  // after creating `app`:
+    // cast to any to avoid Fastify version/type mismatches between packages
+    await (app.register as any)(multipart as any, {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB
+      files: 1,
+      fields: 5,
+    },
+  });
+
+  // serve uploaded files at /uploads/**
+  // cast to any to avoid Fastify version/type mismatches between packages
+  await (app.register as any)(fastifyStatic as any, {
+    root: path.resolve(process.cwd(), 'uploads'),
+    prefix: '/uploads/',
+    decorateReply: false,
+  });
+
+
+  app.use(securityConfig.helmet);
   app.use(new LoggingMiddleware().use);
   app.useGlobalInterceptors(new ResponseInterceptor());
- app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(new ValidationPipe());
 
-   app.useGlobalPipes(
+  app.useGlobalPipes(
     new NestValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,

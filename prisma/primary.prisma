@@ -615,7 +615,7 @@ model SoftwareConfig {
 
 model SmtpSetting {
   id          Int      @id @default(autoincrement())
-  userId      Int
+  userId      Int @unique
   senderName  String
   host        String
   port        Int
