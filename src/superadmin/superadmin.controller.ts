@@ -2,6 +2,7 @@ import { Controller, Post, Get, Body, HttpCode, HttpStatus, Param, ParseIntPipe 
 import { SuperadminService } from './superadmin.service';
 import { CreateAdminDto } from './dto/admin.dto';
 import { AdminPasswordUpdateDto } from './dto/adminpasswordupdate.dto';
+import { UpdateAdminDto } from './dto/updateadmin.dto';
 
 @Controller('superadmin')
 export class SuperadminController {
@@ -17,19 +18,26 @@ export class SuperadminController {
         return this.superadminService.getAdminList();
     }
 
-@Get('admin/:id')
-async getAdminById(@Param('id', ParseIntPipe) id: number) {
-    return this.superadminService.getAdminById(id);
-}
+    @Get('admin/:id')
+    async getAdminById(@Param('id', ParseIntPipe) id: number) {
+        return this.superadminService.getAdminById(id);
+    }
 
-@Post('adminpasswordupdate')
-async updateAdminPassword(@Body() adminpasswordupdate: AdminPasswordUpdateDto): Promise<any> {
-    return this.superadminService.updateAdminPassword(adminpasswordupdate);
-}
+    @Post('adminpasswordupdate')
+    async updateAdminPassword(@Body() adminpasswordupdate: AdminPasswordUpdateDto): Promise<any> {
+        return this.superadminService.updateAdminPassword(adminpasswordupdate);
+    }
 
-@Get('activedeactiveadmin/:id')
-async toggleAdminStatus(@Param('id', ParseIntPipe) id: number): Promise<any> {
-    return this.superadminService.toggleAdminStatus(id);
-}
+    @Get('activedeactiveadmin/:id')
+    async toggleAdminStatus(@Param('id', ParseIntPipe) id: number): Promise<any> {
+        return this.superadminService.toggleAdminStatus(id);
+    }
+
+    @Post('updateadmin/:id')
+    async updateAdmin(@Param('id', ParseIntPipe) id: number, @Body() Adminupdatedto: UpdateAdminDto): Promise<any> {
+       return this.superadminService.updateAdmin(id, Adminupdatedto);
+    }
+
+
 
 }

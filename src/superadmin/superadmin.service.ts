@@ -4,6 +4,7 @@ import { CreateAdminDto } from './dto/admin.dto';
 import { Country, State } from 'country-state-city';
 import * as bcrypt from 'bcryptjs';
 import { AdminPasswordUpdateDto } from './dto/adminpasswordupdate.dto';
+import { UpdateAdminDto } from './dto/updateadmin.dto';
 
 
 @Injectable()
@@ -181,7 +182,7 @@ export class SuperadminService {
         });
     }
 
-   async toggleAdminStatus(id: number): Promise<any> {
+    async toggleAdminStatus(id: number): Promise<any> {
         const existing = await this.primaryDb.user.findUnique({
             where: { uid: id },
             select: { isActive: true },
@@ -199,4 +200,88 @@ export class SuperadminService {
             },
         });
     }
+
+    // ...existing code...
+    async updateAdmin(id: number, Adminupdatedto: UpdateAdminDto): Promise<any> {
+        const { name, email, mobilePrefix, mobileNumber, addressLine, countryCode, stateCode, cityName, pincode } = Adminupdatedto;
+        const admin = await this.primaryDb.user.findUnique({
+            where: { uid: id }
+        });
+
+
+
+        if (!admin) {
+            return { message: 'Admin not found' };
+        }
+
+
+        if (email) {
+            const duplicate = await this.primaryDb.user.findFirst({
+                where: {
+                    email: { equals: email, mode: 'insensitive' },
+                    NOT: { uid: id },
+                },
+                select: { uid: true },
+            });
+            if (duplicate) {
+                return { message: 'Duplicate email not allowed: already exists' };               
+            }
+        }
+
+
+        const countryName = Country.getCountryByCode(countryCode)?.name ?? countryCode;
+        const stateName = State.getStateByCodeAndCountry(stateCode, countryCode)?.name ?? stateCode;
+        const fullAddress = `${addressLine}, ${cityName}, ${stateName}, ${countryName}, ${pincode ? pincode : ''}`;
+
+
+
+        if (admin.addressId == null) {
+            const newAddress = await this.primaryDb.address.create({
+                data: {
+                    addressLine,
+                    countryCode,
+                    stateCode,
+                    cityId: cityName,
+                    pincode: pincode ? pincode : null,
+                    fullAddress,
+                },
+            });
+            admin.addressId = newAddress.id;
+
+        }
+        else {
+            // addressId is a number here, safe to update
+            await this.primaryDb.address.update({
+                where: { id: admin.addressId },
+                data: {
+                    addressLine,
+                    countryCode,
+                    stateCode,
+                    cityId: cityName,
+                    pincode: pincode ? pincode : null,
+                    fullAddress,
+                },
+            });
+        }
+
+        const Updatedadmin = await this.primaryDb.user.update({
+            where: { uid: id },
+            data: {
+                name,
+                email: email ? email : "",
+                mobilePrefix,
+                mobileNumber,
+                addressId: admin.addressId,
+                updatedAt: new Date(),
+            },
+        });
+
+        return { message: 'Admin updated successfully', data: Updatedadmin };
+
+
+    }
+
+
+
 }
+

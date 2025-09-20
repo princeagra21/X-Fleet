@@ -55,6 +55,7 @@ Thumbs.db
 # Logs
 logs
 *.log
+winston_logs/
 
 # Prisma and generated artifacts
 generated/
