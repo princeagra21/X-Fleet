@@ -6,6 +6,7 @@ import { securityConfig } from './common/config/security.config';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { ValidationPipe } from './common/pipes/validation.pipe';
+import { ValidationPipe as NestValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   
@@ -21,7 +22,16 @@ async function bootstrap() {
    app.use(securityConfig.helmet);
   app.use(new LoggingMiddleware().use);
   app.useGlobalInterceptors(new ResponseInterceptor());
-  app.useGlobalPipes(new ValidationPipe());
+ app.useGlobalPipes(new ValidationPipe());
+
+   app.useGlobalPipes(
+    new NestValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   const port = process.env.PORT || 3001;
   await app.listen(port, '0.0.0.0');

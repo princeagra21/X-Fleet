@@ -198,6 +198,8 @@ model User {
   driverUserLinks  DriverUser[]
   driverVehicleLogs DriverVehicleHistory[]
   notesAssoc       Note[]       @relation("NoteAssocUser")
+  simsManaged      Sim[] @relation("AdminUserSims")
+  devicesManaged   Device[]  @relation("AdminUserDevices")
 
   @@index([loginType])
   @@index([roleId])
@@ -335,29 +337,35 @@ model SimProvider {
 model Sim {
   id          Int  @id @default(autoincrement())
   simNumber   Int  @unique
+  adminUserId  Int
   imsi        Int?
   providerId  Int?
   iccid       String?
   status      Boolean @default(true)
 
+  adminUser    User  @relation("AdminUserSims", fields: [adminUserId], references: [uid], onDelete: Restrict, onUpdate: Cascade)
   provider    SimProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   devices     Device[]
 
   @@index([providerId])
+  @@index([adminUserId])  
   @@map("sims")
 }
 
 model Device {
   id           Int     @id @default(autoincrement())
+  adminUserId   Int
   imei         String     @unique
   simId        Int?
   deviceTypeId Int?
   createdAt    DateTime   @default(now())
 
+ adminUser     User       @relation("AdminUserDevices", fields: [adminUserId], references: [uid], onDelete: Restrict, onUpdate: Cascade)
   sim          Sim?        @relation(fields: [simId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   type         DeviceType? @relation(fields: [deviceTypeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   vehicles     Vehicle[]
 
+  @@index([adminUserId])
   @@index([simId])
   @@index([deviceTypeId])
   @@map("devices")
@@ -569,12 +577,38 @@ model UserSettings {
 }
 
 model SoftwareConfig {
-  id                 Int              @id @default(autoincrement())
-  geocodingPrecision GeocodingPrecision  @default(TWO_DIGIT)
-  ssoUrl             String?
-  backupDays         Int?
-  openaiApiKey       String?
-  currencyCode       String
+  id                      Int  @unique    @id @default(1) 
+
+  
+  geocodingPrecision      GeocodingPrecision  @default(TWO_DIGIT)
+  backupDays              Int?     @default(90)
+  currencyCode            String   @default("USD")
+
+  // OpenAI
+  isOpenAiEnabled         Boolean  @default(false)
+  openAiApiKey            String?
+  openAiModel             String?
+
+  // WhatsApp Business API
+  isWhatsappEnabled       Boolean  @default(false)
+  whatsappBusinessAccountId String?
+  whatsappAccessToken     String?
+  whatsappPhoneNumberId   String?
+
+  // Google SSO
+  isGoogleSsoEnabled      Boolean  @default(false)
+  googleClientId          String?
+  googleClientSecret      String?
+  googleRedirectUri       String?
+
+  // Reverse Geocoding
+  isReverseGeoEnabled     Boolean  @default(false)
+  reverseGeoApiKey        String?
+  reverseGeoProvider      String?   // "Google" | "Mapbox" | "OSM"
+
+  // Audit
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@map("software_config")
 }

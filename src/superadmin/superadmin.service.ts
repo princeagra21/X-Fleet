@@ -8,11 +8,20 @@ import { UpdateAdminDto } from './dto/updateadmin.dto';
 import { CreditsUpdateDto } from './dto/creditassign.dto';
 
 
+type AnyObj = Record<string, unknown>;
+
+/** Utility: remove undefined keys for clean partial update */
+function stripUndefined<T extends AnyObj>(obj: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined),
+  ) as Partial<T>;
+}
+
 @Injectable()
 export class SuperadminService {
     constructor(private readonly primaryDb: PrimaryDatabaseService) { }
 
-    private Super_Admin_Id = 1; // Assuming the Super Admin has a fixed user ID of 1
+    private readonly Super_Admin_Id = 1; // Assuming the Super Admin has a fixed user ID of 1
 
     async createAdmin(AdminDto: CreateAdminDto): Promise<any> {
         const { name, email, mobilePrefix, mobileNumber, username, password, companyName, address, country, state, city, pincode, credits } = AdminDto;
@@ -59,7 +68,7 @@ export class SuperadminService {
                 credits: credits ? parseInt(credits) : 0,
                 createdAt: new Date(),
                 updatedAt: new Date(),
-                roleId:1,
+                roleId: 1,
                 parentUserId: this.Super_Admin_Id,
                 addressId: Currentaddress.id,
 
@@ -75,9 +84,9 @@ export class SuperadminService {
             }
         });
 
-        if(credits && parseInt(credits) > 0){
+        if (credits && parseInt(credits) > 0) {
             await this.primaryDb.creditLog.create({
-                data: { 
+                data: {
                     adminUserId: userId,
                     credits: parseInt(credits),
                     activity: 'ASSIGN',
@@ -216,7 +225,7 @@ export class SuperadminService {
                 select: { uid: true },
             });
             if (duplicate) {
-                return { message: 'Duplicate email not allowed: already exists' };               
+                return { message: 'Duplicate email not allowed: already exists' };
             }
         }
 
@@ -274,14 +283,14 @@ export class SuperadminService {
     }
 
     async assignCredits(id: number, creditsUpdateDto: CreditsUpdateDto): Promise<any> {
-        const { credits , activity } = creditsUpdateDto;
+        const { credits, activity } = creditsUpdateDto;
         console.log(activity);
         if (activity !== 'ASSIGN' && activity !== 'DEDUCT') {
             return { message: 'Invalid activity. Must be ASSIGN or DEDUCT.' };
         }
         const admin = await this.primaryDb.user.findUnique({
             where: { uid: id }
-        }); 
+        });
         if (!admin) {
             return { message: 'Admin not found' };
         }
@@ -290,11 +299,10 @@ export class SuperadminService {
             newCredits += parseInt(credits);
         } else if (activity === 'DEDUCT') {
             newCredits -= parseInt(credits);
-            if (newCredits < 0)
-                {
+            if (newCredits < 0) {
                 return { message: 'Insufficient credits to deduct' };
-                } // Prevent negative credits
-        } 
+            } // Prevent negative credits
+        }
         const Updatedadmin = await this.primaryDb.user.update({
             where: { uid: id },
             data: {
@@ -303,11 +311,11 @@ export class SuperadminService {
             },
         });
         await this.primaryDb.creditLog.create({
-            data: { 
-                adminUserId: id,    
+            data: {
+                adminUserId: id,
                 credits: parseInt(credits),
                 activity: activity === 'ASSIGN' ? 'ASSIGN' : 'DEDUCT',
-                createdAt: new Date(),  
+                createdAt: new Date(),
             },
         });
         return { message: 'Credits updated successfully', data: Updatedadmin };
@@ -339,6 +347,39 @@ export class SuperadminService {
         });
         return { message: 'Admin deleted successfully' };
     }
+
+    async UpdateConfig(SoftwareConfigDto: any) {
+        await this.upsertDefaults();
+
+        const data = stripUndefined(SoftwareConfigDto);
+        if (Object.keys(data).length === 0) {
+            return this.primaryDb.softwareConfig.findUnique({ where: { id: this.Super_Admin_Id } });
+        }
+
+        return this.primaryDb.softwareConfig.update({
+            where: { id: this.Super_Admin_Id },
+            data,
+        });
+    }
+
+    private upsertDefaults() {
+        return this.primaryDb.softwareConfig.upsert({
+            where: { id: this.Super_Admin_Id },
+            update: {}, // no-op if exists
+            create: {
+                id: this.Super_Admin_Id,
+                geocodingPrecision: 'TWO_DIGIT',
+                backupDays: 90,
+                currencyCode: 'USD',
+                isOpenAiEnabled: false,
+                isWhatsappEnabled: false,
+                isGoogleSsoEnabled: false,
+                isReverseGeoEnabled: false,
+            } as any,
+        });
+    }
+
+
 
 
 }
