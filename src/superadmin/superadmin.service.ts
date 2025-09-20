@@ -5,6 +5,7 @@ import { Country, State } from 'country-state-city';
 import * as bcrypt from 'bcryptjs';
 import { AdminPasswordUpdateDto } from './dto/adminpasswordupdate.dto';
 import { UpdateAdminDto } from './dto/updateadmin.dto';
+import { CreditsUpdateDto } from './dto/creditassign.dto';
 
 
 @Injectable()
@@ -14,7 +15,6 @@ export class SuperadminService {
     private Super_Admin_Id = 1; // Assuming the Super Admin has a fixed user ID of 1
 
     async createAdmin(AdminDto: CreateAdminDto): Promise<any> {
-        console.log("Admin DTO:", AdminDto);
         const { name, email, mobilePrefix, mobileNumber, username, password, companyName, address, country, state, city, pincode, credits } = AdminDto;
         const existingAdmin = await this.primaryDb.user.findFirst({
             where: {
@@ -59,7 +59,7 @@ export class SuperadminService {
                 credits: credits ? parseInt(credits) : 0,
                 createdAt: new Date(),
                 updatedAt: new Date(),
-                //roleId:1,
+                roleId:1,
                 parentUserId: this.Super_Admin_Id,
                 addressId: Currentaddress.id,
 
@@ -75,7 +75,16 @@ export class SuperadminService {
             }
         });
 
-
+        if(credits && parseInt(credits) > 0){
+            await this.primaryDb.creditLog.create({
+                data: { 
+                    adminUserId: userId,
+                    credits: parseInt(credits),
+                    activity: 'ASSIGN',
+                    createdAt: new Date(),
+                },
+            });
+        }
 
 
         return { message: 'Admin Created Successfully', data: CurrentAdmin };
@@ -116,23 +125,6 @@ export class SuperadminService {
         if (id === undefined || id === null || Number.isNaN(id)) {
             return { message: 'Invalid admin ID' };
         }
-
-
-        // const user = await this.primaryDb.user.findUnique({
-        //   where: { uid: id },            // <-- Int field
-        //   select: {
-        //     uid: true,
-        //     name: true,
-        //     email: true,
-        //     mobilePrefix: true,
-        //     mobileNumber: true,
-        //     username: true,
-        //     credits: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //     companies: { select: { name: true, websiteUrl:true, customDomain:true, socialLinks: true  } },
-        //   },
-        // });
 
         const user = await this.primaryDb.user.findUnique({
             where: { uid: id }, // Int field
@@ -281,6 +273,72 @@ export class SuperadminService {
 
     }
 
+    async assignCredits(id: number, creditsUpdateDto: CreditsUpdateDto): Promise<any> {
+        const { credits , activity } = creditsUpdateDto;
+        console.log(activity);
+        if (activity !== 'ASSIGN' && activity !== 'DEDUCT') {
+            return { message: 'Invalid activity. Must be ASSIGN or DEDUCT.' };
+        }
+        const admin = await this.primaryDb.user.findUnique({
+            where: { uid: id }
+        }); 
+        if (!admin) {
+            return { message: 'Admin not found' };
+        }
+        let newCredits = admin.credits;
+        if (activity === 'ASSIGN') {
+            newCredits += parseInt(credits);
+        } else if (activity === 'DEDUCT') {
+            newCredits -= parseInt(credits);
+            if (newCredits < 0)
+                {
+                return { message: 'Insufficient credits to deduct' };
+                } // Prevent negative credits
+        } 
+        const Updatedadmin = await this.primaryDb.user.update({
+            where: { uid: id },
+            data: {
+                credits: newCredits,
+                updatedAt: new Date(),
+            },
+        });
+        await this.primaryDb.creditLog.create({
+            data: { 
+                adminUserId: id,    
+                credits: parseInt(credits),
+                activity: activity === 'ASSIGN' ? 'ASSIGN' : 'DEDUCT',
+                createdAt: new Date(),  
+            },
+        });
+        return { message: 'Credits updated successfully', data: Updatedadmin };
+    }
+
+
+    async getCreditLogs(id: number): Promise<any> {
+        const admin = await this.primaryDb.user.findUnique({
+            where: { uid: id }
+        });
+        if (!admin) {
+            return { message: 'Admin not found' };
+        }
+        return this.primaryDb.creditLog.findMany({
+            where: { adminUserId: id },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    async deleteAdmin(id: number): Promise<any> {
+        const admin = await this.primaryDb.user.findUnique({
+            where: { uid: id }
+        });
+        if (!admin) {
+            return { message: 'Admin not found' };
+        }
+        await this.primaryDb.user.delete({
+            where: { uid: id }
+        });
+        return { message: 'Admin deleted successfully' };
+    }
 
 
 }

@@ -91,6 +91,14 @@ export class AuthService {
             }
         });
 
+        await this.primaryDb.role.create({
+            data: {
+                name: 'Reguler Admin',
+                description: 'Admin Role with all permissions',
+                parentRoleId: user.uid
+            }
+        });
+
 
         return { message: 'Super Admin Created Successfully', data: user };
 
@@ -147,7 +155,7 @@ export class AuthService {
                 id: user.uid.toString(),
                 role: user.loginType,
                 username: user.username,
-                email: user.email? user.email : "",
+                email: user.email ? user.email : "",
                 name: user.name,
             }
         };
@@ -197,7 +205,7 @@ export class AuthService {
                 id: user.uid.toString(),
                 role: user.loginType,
                 username: user.username,
-                email: user.email? user.email : "",
+                email: user.email ? user.email : "",
                 name: user.name,
             }
         };
