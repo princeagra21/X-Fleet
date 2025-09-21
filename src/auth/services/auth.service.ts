@@ -95,7 +95,8 @@ export class AuthService {
             data: {
                 name: 'Reguler Admin',
                 description: 'Admin Role with all permissions',
-                parentRoleId: user.uid
+              //  parentRoleId: user.uid,
+                createdById: user.uid,
             }
         });
 

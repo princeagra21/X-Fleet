@@ -50,5 +50,14 @@ export class AppController {
     return this.appService.getCurrencies();
   }
 
+  @Get('simproviders')
+ async getSimProviders() {
+    return  this.appService.getSimProviders();
+  }
 
+  @Get('timezones')
+ async getTimezones() : Promise<any> {
+    return this.appService.getTimezones();
+  }
 }
+  

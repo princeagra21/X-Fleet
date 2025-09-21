@@ -175,6 +175,7 @@ model User {
   role             Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   address          Address?     @relation(fields: [addressId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
+  rolesCreated     Role[]       @relation("RoleCreatedBy")
   companies        Company[]
   vehiclesPrimary  Vehicle[]    @relation("VehiclePrimaryUser")
   vehiclesAdded    Vehicle[]    @relation("VehicleAddedBy")
@@ -253,10 +254,14 @@ model Company {
 // Roles & Permissions
 // =========================
 model Role {
-  id              Int @id @default(autoincrement())
+  id              Int    @id @default(autoincrement())
   name            String @unique
   description     String?
   parentRoleId    Int?
+
+  
+  createdById     Int?                                      
+  createdBy       User?  @relation("RoleCreatedBy", fields: [createdById], references: [uid], onDelete: SetNull, onUpdate: Cascade)
 
   parent          Role?   @relation("RoleParent", fields: [parentRoleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   children        Role[]  @relation("RoleParent")
@@ -265,6 +270,7 @@ model Role {
   rolePermissions RolePermission[]
 
   @@index([parentRoleId])
+  @@index([createdById])                                    // helpful for queries
   @@map("roles")
 }
 
@@ -336,11 +342,11 @@ model SimProvider {
 
 model Sim {
   id          Int  @id @default(autoincrement())
-  simNumber   Int  @unique
+  simNumber   String  @unique
   adminUserId  Int
-  imsi        Int?
+  imsi        String? @unique
   providerId  Int?
-  iccid       String?
+  iccid       String? @unique
   status      Boolean @default(true)
 
   adminUser    User  @relation("AdminUserSims", fields: [adminUserId], references: [uid], onDelete: Restrict, onUpdate: Cascade)
@@ -406,7 +412,7 @@ model PricingPlan {
 model Vehicle {
   id               Int   @id @default(autoincrement())
   name             String
-  vin              String?
+  vin              String? @unique
   plateNumber      String?
   deviceId         Int?
   vehicleTypeId    Int?

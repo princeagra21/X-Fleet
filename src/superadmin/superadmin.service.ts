@@ -99,6 +99,19 @@ export class SuperadminService {
             });
         }
 
+        const currency = Country.getCountryByCode(country)?.currency ?? 'USD';
+        await this.primaryDb.pricingPlan.create({
+            data: {
+                adminUserId: userId,
+                name: 'Default Plan',
+                price: 120,
+                currency: currency,
+                durationDays: 365,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                isActive: true,
+            },
+        });
 
         return { message: 'Admin Created Successfully', data: CurrentAdmin };
 
@@ -600,7 +613,7 @@ async parseMultipart(req: FastifyRequest): Promise<{ type: UploadType, filePart:
     async saveToDisk(filePart: any, userId: number, type: UploadType): Promise<string> {
         const path = require('path');
         const fs = require('fs');
-        const uploadDir = path.join(__dirname, '../../uploads', userId.toString());
+        const uploadDir = path.join(__dirname, '../../uploads/users', userId.toString());
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -613,7 +626,7 @@ async parseMultipart(req: FastifyRequest): Promise<{ type: UploadType, filePart:
             filePart.file.on('end', resolve);
             filePart.file.on('error', reject);
         });
-        return `/uploads/${userId}/${filename}`; // URL path
+        return `/uploads/users/${userId}/${filename}`; // URL path
     }
     async applyUpdate(userId: number, type: UploadType, url: string): Promise<any> {
         const updateData: any = {};

@@ -85,7 +85,7 @@ export class AppService {
       if (!cc) return;
       if (!currencyMap[cc]) {
         const name = (c as any).currencyName ?? (c as any).currency_name ?? cc;
-       // const symbol = (c as any).currencySymbol ?? (c as any).currency_symbol ?? '';
+        // const symbol = (c as any).currencySymbol ?? (c as any).currency_symbol ?? '';
         currencyMap[cc] = { code: cc, name };
       }
     });
@@ -94,5 +94,66 @@ export class AppService {
     const currencies = Object.values(currencyMap).sort((a, b) => a.name.localeCompare(b.name));
     return currencies;
   }
+
+  async getSimProviders() {
+    return this.primaryDb.simProvider.findMany({
+      select: {
+        id: true,
+        name: true,
+        apnName: true
+      },
+    });
+  }
+
+
+  async getTimezones(): Promise<string[]> {
+    const zones: string[] = [
+      "-12:00",
+      "-11:00",
+      "-10:30",
+      "-10:00",
+      "-09:30",
+      "-09:00",
+      "-08:00",
+      "-07:00",
+      "-06:00",
+      "-05:00",
+      "-04:00",
+      "-03:30",
+      "-03:00",
+      "-02:30",
+      "-02:00",
+      "-01:00",
+      "+00:00",
+      "+01:00",
+      "+02:00",
+      "+03:00",
+      "+03:30", // Iran
+      "+04:00",
+      "+04:30", // Afghanistan
+      "+05:00",
+      "+05:30", // India/Sri Lanka
+      "+05:45", // Nepal
+      "+06:00",
+      "+06:30", // Myanmar/Cocos
+      "+07:00",
+      "+08:00",
+      "+08:45", // Australia/Eucla
+      "+09:00",
+      "+09:30", // Australia (NT/SA)
+      "+10:00",
+      "+10:30", // Lord Howe (standard)
+      "+11:00",
+      "+12:00",
+      "+12:45", // Chatham (standard)
+      "+13:00",
+      "+13:45", // Chatham (DST)
+      "+14:00", // Line Islands (Kiribati)
+    ];
+
+
+    return zones;
+  }
+
 
 }
