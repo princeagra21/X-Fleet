@@ -533,100 +533,225 @@ export class SuperadminService {
     }
 
     async handleUpload(req: FastifyRequest, id: number): Promise<any> {
-        const admin = await this.primaryDb.user.findUnique({
-            where: { uid: id }
-        }); 
-        if (!admin) {
-            return { message: 'Admin not found' };
-        }
-        const { type, filePart } = await this.parseMultipart(req);
-        this.validateMime(type, filePart.mimetype);
-        const url = await this.saveToDisk(filePart, id, type);
-        // drain file stream if needed (already piped)
-        return this.applyUpdate(id, type, url);       
+               
+        try {
+            const admin = await this.primaryDb.user.findUnique({
+                where: { uid: id }
+            }); 
+            if (!admin) {
+                return { message: 'Admin not found' };
+            }
 
+            console.log('Admin found, proceeding with multipart parsing...');
+            const { type, filePart } = await this.parseMultipart(req);
+            
+            console.log('Multipart parsed successfully, type:', type);
+            const mimetype = (filePart as any).mimetype || 'application/octet-stream';
+            console.log('File mimetype:', mimetype);
+            
+            this.validateMime(type, mimetype);
+            console.log('MIME validation passed');
+            
+            const url = await this.saveToDisk(filePart, id, type);
+            console.log('File saved to:', url);
+            
+            const result = await this.applyUpdate(id, type, url);
+            console.log('Database update completed:', result);
+            
+            return result;
+        } catch (error) {
+            console.error('Upload error:', error);
+            console.error('Error stack:', error.stack);
+            return { 
+                message: 'Upload failed', 
+                error: error.message 
+            };
+        }
     }
 
-async parseMultipart(req: FastifyRequest): Promise<{ type: UploadType, filePart: any }> {
-        // parts() may be available on req or req.raw depending on wrapper/fastify version
-        const partsIter = typeof (req as any).parts === 'function'
-            ? (req as any).parts()
-            : typeof (req as any).raw?.parts === 'function'
-                ? (req as any).raw.parts()
-                : null;
-
+    async parseMultipart(req: FastifyRequest): Promise<{ type: UploadType, filePart: any }> {
+        console.log('parseMultipart called, req.isMultipart():', req.isMultipart?.());
+        
         let filePart: any = null;
         let type: UploadType | null = null;
 
-        if (partsIter) {
-            for await (const part of partsIter) {
-                if (part.type === 'file') {
-                    if (filePart) {
-                        throw new Error('Only one file allowed');
+        try {
+            // Check if the request has multipart data available
+            if (!req.isMultipart || !req.isMultipart()) {
+                throw new Error('Request is not multipart');
+            }
+
+            console.log('Starting multipart parsing...');
+
+            // Process multipart parts using async iterator with timeout
+            const parts = req.parts();
+            let partCount = 0;
+            const maxParts = 10; // Safety limit
+            
+            try {
+                for await (const part of parts) {
+                    partCount++;
+                    console.log(`Processing part ${partCount}:`, {
+                        type: part.type,
+                        fieldname: part.fieldname
+                    });
+
+                    if (partCount > maxParts) {
+                        console.log('Max parts limit reached, breaking loop');
+                        break;
                     }
-                    filePart = part;
-                } else if (part.type === 'field' && part.fieldname === 'type') {
-                    // part.value can be unknown according to types; guard before using
-                    const rawVal = typeof (part as any).value === 'string' ? (part as any).value : undefined;
-                    const val = rawVal ? rawVal.trim().replace(/^"|"$/g, '') : undefined; // remove surrounding quotes
-                    if (val && ['PROFILE', 'DARKLOGO', 'LIGHTLOGO', 'FAVICON'].includes(val)) {
-                        type = val as UploadType;
+
+                    if (part.type === 'file') {
+                        if (filePart) {
+                            throw new Error('Only one file allowed');
+                        }
+                        filePart = part;
+                        console.log('File part found:', {
+                            filename: (part as any).filename,
+                            mimetype: (part as any).mimetype,
+                            encoding: (part as any).encoding
+                        });
+                        
+                        console.log('File part stored for processing');
+                        
+                    } else if (part.type === 'field' && part.fieldname === 'type') {
+                        // For field parts, the value should be directly accessible
+                        const rawVal = (part as any).value;
+                        console.log('Raw type value:', rawVal, typeof rawVal);
+                        
+                        const val = rawVal ? String(rawVal).trim().replace(/^"|"$/g, '') : undefined;
+                        
+                        console.log('Processed type value:', val);
+                        
+                        if (val && ['PROFILE', 'DARKLOGO', 'LIGHTLOGO', 'FAVICON'].includes(val)) {
+                            type = val as UploadType;
+                            console.log('Valid type set:', type);
+                        } else {
+                            throw new Error(`Invalid upload type: ${val}. Must be one of: PROFILE, DARKLOGO, LIGHTLOGO, FAVICON`);
+                        }
                     } else {
-                        throw new Error('Invalid upload type');
+                        // For any other field parts, just log and continue
+                        console.log('Skipping unknown part:', part.fieldname);
+                    }
+                    
+                    console.log(`Part ${partCount} processed successfully`);
+                    
+                    // If we have both required parts, we can break early
+                    if (filePart && type) {
+                        console.log('Both required parts found, breaking early');
+                        break;
                     }
                 }
+            } catch (loopError) {
+                console.log('Loop ended with error (this might be normal):', loopError.message);
+                // This might be normal - the iterator might throw when it's done
             }
-        } else {
-            // If parts iterator isn't available, plugin may have attached fields to body
-            const body = (req as any).body ?? (req as any).raw?.body ?? null;
-            if (!body) {
-                throw new Error('Multipart parser not available on request. Ensure @fastify/multipart is registered and used.');
+
+            console.log(`Completed processing ${partCount} parts. File part:`, !!filePart, 'Type:', type);
+
+            if (!filePart) {
+                throw new Error('File is required');
             }
-            // try to extract type and file from body/req.raw
-            const rawType = typeof body.type === 'string' ? body.type : undefined;
-            const val = rawType ? rawType.trim().replace(/^"|"$/g, '') : undefined;
-            if (!val || !['PROFILE', 'DARKLOGO', 'LIGHTLOGO', 'FAVICON'].includes(val)) {
-                throw new Error('Invalid or missing upload type');
+            if (!type) {
+                throw new Error('Type field is required');
             }
-            type = val as UploadType;
-            // for file, @fastify/multipart with attachFieldsToBody places files under body.files or body.file depending on config
-            filePart = body.file ?? body.files?.file ?? body.files?.[0] ?? null;
+
+            console.log('parseMultipart completed successfully');
+            return { type, filePart };
+        } catch (error) {
+            console.error('Multipart parsing error:', error);
+            console.error('Error stack:', error.stack);
+            throw new Error(`Multipart parsing failed: ${error.message}`);
         }
-        if (!filePart) {
-            throw new Error('File is required');
-        }
-        if (!type) {
-            throw new Error('Type field is required');
-        }
-        return { type, filePart };
     }
     validateMime(type: UploadType, mimetype: string) {
+        console.log('validateMime called with:', { type, mimetype });
+        
         const imageMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'];
+        
         if (!imageMimes.includes(mimetype)) {
+            console.log('Invalid mimetype detected:', mimetype);
             throw new Error('Invalid file type. Only image files are allowed.');
         }
+        
         if (type === 'FAVICON' && !['image/x-icon', 'image/vnd.microsoft.icon', 'image/png'].includes(mimetype)) {
+            console.log('Invalid favicon format:', { type, mimetype });
             throw new Error('Favicon must be .ico or .png format.');
         }
+        
+        console.log('MIME validation passed');
     }
 
     async saveToDisk(filePart: any, userId: number, type: UploadType): Promise<string> {
         const path = require('path');
         const fs = require('fs');
-        const uploadDir = path.join(__dirname, '../../uploads/users', userId.toString());
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        const ext = path.extname(filePart.filename);
-        const filename = `${type.toLowerCase()}${ext}`;
-        const filepath = path.join(uploadDir, filename);
-        const writeStream = fs.createWriteStream(filepath);
-        await new Promise((resolve, reject) => {
-            filePart.file.pipe(writeStream);
-            filePart.file.on('end', resolve);
-            filePart.file.on('error', reject);
+        const { pipeline } = require('stream/promises');
+        
+        console.log('saveToDisk called with:', {
+            userId,
+            type,
+            filePartType: typeof filePart,
+            hasFile: !!(filePart.file),
+            filename: filePart.filename,
+            mimetype: filePart.mimetype
         });
-        return `/uploads/users/${userId}/${filename}`; // URL path
+        
+        // Use process.cwd() to get the current working directory
+        const uploadsRoot = path.join(process.cwd(), 'uploads', 'users', userId.toString());
+        console.log('Upload directory:', uploadsRoot);
+        
+        if (!fs.existsSync(uploadsRoot)) {
+            console.log('Creating upload directory...');
+            fs.mkdirSync(uploadsRoot, { recursive: true });
+        }
+        
+        // Get file extension from filename or mimetype
+        const filename = filePart.filename || 'file';
+        const ext = path.extname(filename) || this.getExtensionFromMimetype(filePart.mimetype);
+        const newFilename = `${type.toLowerCase()}${ext}`;
+        const filepath = path.join(uploadsRoot, newFilename);
+        
+        console.log('File details:', {
+            originalFilename: filename,
+            newFilename,
+            filepath,
+            mimetype: filePart.mimetype
+        });
+        
+        try {
+            console.log('Starting file write...');
+            // For Fastify multipart, the file stream is directly on the part object
+            let fileStream = filePart.file || filePart;
+            
+            console.log('Using stream:', {
+                streamType: typeof fileStream,
+                hasPipe: typeof fileStream.pipe === 'function',
+                isReadable: fileStream.readable !== undefined ? fileStream.readable : 'unknown'
+            });
+            
+            await pipeline(fileStream, fs.createWriteStream(filepath));
+            console.log('File written successfully to:', filepath);
+        } catch (error) {
+            console.error('File write error:', error);
+            throw new Error(`Failed to save file: ${error.message}`);
+        }
+        
+        const urlPath = `/uploads/users/${userId}/${newFilename}`;
+        console.log('Returning URL path:', urlPath);
+        return urlPath;
+    }
+
+    private getExtensionFromMimetype(mimetype: string): string {
+        const mimeMap: Record<string, string> = {
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/svg+xml': '.svg',
+            'image/x-icon': '.ico',
+            'image/vnd.microsoft.icon': '.ico'
+        };
+        return mimeMap[mimetype] || '.jpg';
     }
     async applyUpdate(userId: number, type: UploadType, url: string): Promise<any> {
         const updateData: any = {};

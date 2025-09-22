@@ -8,6 +8,7 @@ import { databaseConfig } from './config/database.config';
 import { AuthModule } from './auth/auth.module';
 import { SuperadminModule } from './superadmin/superadmin.module';
 import { AdminModule } from './admin/admin.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -20,7 +21,8 @@ import { AdminModule } from './admin/admin.module';
     HealthModule,
     AuthModule,
     SuperadminModule,
-    AdminModule
+    AdminModule,
+    UserModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -89,9 +89,19 @@ export class SuperadminController {
     }
 
     @Post('upload/:id')
-    upload(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
-        console.log(id, req);
-        return this.superadminService.handleUpload(req, id);
+    async upload(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
+              
+        try {
+            const result = await this.superadminService.handleUpload(req, id);
+            console.log('Upload result:', result);
+            return result;
+        } catch (error) {
+            console.error('Upload controller error:', error);
+            return { 
+                message: 'Upload failed', 
+                error: error.message 
+            };
+        }
     }
 
 }
