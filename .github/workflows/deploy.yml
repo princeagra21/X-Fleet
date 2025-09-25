@@ -84,7 +84,7 @@ jobs:
           mkdir -p deploy
           
           # Create docker-compose.prod.yml for deployment
-          cat > deploy/docker-compose.prod.yml << 'EOF'
+          cat > deploy/docker-compose.prod.yml << EOF
           services:
             x-fleet-app:
               image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
@@ -120,7 +120,7 @@ jobs:
               networks:
                 - x-fleet-network
               healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+                test: ["CMD-SHELL", "pg_isready -U \$$POSTGRES_USER"]
                 interval: 10s
                 timeout: 5s
                 retries: 5
@@ -272,7 +272,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          script_timeout: 300s
+          timeout: 300s
           command_timeout: 60s
           script: |
             # Create deployment directory
@@ -328,7 +328,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          script_timeout: 600s
+          timeout: 600s
           script: |
             cd ~/x-fleet-deployment
             
