@@ -83,55 +83,53 @@ jobs:
           # Create deployment directory
           mkdir -p deploy
           
-          # Create docker-compose.prod.yml for deployment
-          cat > deploy/docker-compose.prod.yml << EOF
-services:
-  x-fleet-app:
-    image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-    container_name: x-fleet-app
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-      - "80:3001"
-    env_file:
-      - .env
-    depends_on:
-      - x-fleet-postgres
-    networks:
-      - xfleet
-    healthcheck:
-      test: ["CMD", "sh", "-c", "node --version || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  x-fleet-postgres:
-    image: postgres:15-alpine
-    container_name: x-fleet-postgres
-    restart: unless-stopped
-    ports:
-      - "5432:5432"
-    env_file:
-      - .env
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    networks:
-      - xfleet
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-networks:
-  xfleet:
-    driver: bridge
-
-volumes:
-  postgres_data:
-EOF
+          # Create docker-compose.prod.yml for deployment using echo to avoid heredoc issues
+          echo "services:" > deploy/docker-compose.prod.yml
+          echo "  x-fleet-app:" >> deploy/docker-compose.prod.yml
+          echo "    image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest" >> deploy/docker-compose.prod.yml
+          echo "    container_name: x-fleet-app" >> deploy/docker-compose.prod.yml
+          echo "    restart: unless-stopped" >> deploy/docker-compose.prod.yml
+          echo "    ports:" >> deploy/docker-compose.prod.yml
+          echo "      - \"3001:3001\"" >> deploy/docker-compose.prod.yml
+          echo "      - \"80:3001\"" >> deploy/docker-compose.prod.yml
+          echo "    env_file:" >> deploy/docker-compose.prod.yml
+          echo "      - .env" >> deploy/docker-compose.prod.yml
+          echo "    depends_on:" >> deploy/docker-compose.prod.yml
+          echo "      - x-fleet-postgres" >> deploy/docker-compose.prod.yml
+          echo "    networks:" >> deploy/docker-compose.prod.yml
+          echo "      - xfleet" >> deploy/docker-compose.prod.yml
+          echo "    healthcheck:" >> deploy/docker-compose.prod.yml
+          echo "      test: [\"CMD\", \"sh\", \"-c\", \"node --version || exit 1\"]" >> deploy/docker-compose.prod.yml
+          echo "      interval: 30s" >> deploy/docker-compose.prod.yml
+          echo "      timeout: 10s" >> deploy/docker-compose.prod.yml
+          echo "      retries: 3" >> deploy/docker-compose.prod.yml
+          echo "      start_period: 30s" >> deploy/docker-compose.prod.yml
+          echo "" >> deploy/docker-compose.prod.yml
+          echo "  x-fleet-postgres:" >> deploy/docker-compose.prod.yml
+          echo "    image: postgres:15-alpine" >> deploy/docker-compose.prod.yml
+          echo "    container_name: x-fleet-postgres" >> deploy/docker-compose.prod.yml
+          echo "    restart: unless-stopped" >> deploy/docker-compose.prod.yml
+          echo "    ports:" >> deploy/docker-compose.prod.yml
+          echo "      - \"5432:5432\"" >> deploy/docker-compose.prod.yml
+          echo "    env_file:" >> deploy/docker-compose.prod.yml
+          echo "      - .env" >> deploy/docker-compose.prod.yml
+          echo "    volumes:" >> deploy/docker-compose.prod.yml
+          echo "      - postgres_data:/var/lib/postgresql/data" >> deploy/docker-compose.prod.yml
+          echo "      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql" >> deploy/docker-compose.prod.yml
+          echo "    networks:" >> deploy/docker-compose.prod.yml
+          echo "      - xfleet" >> deploy/docker-compose.prod.yml
+          echo "    healthcheck:" >> deploy/docker-compose.prod.yml
+          echo "      test: [\"CMD-SHELL\", \"pg_isready -U \$\$POSTGRES_USER\"]" >> deploy/docker-compose.prod.yml
+          echo "      interval: 10s" >> deploy/docker-compose.prod.yml
+          echo "      timeout: 5s" >> deploy/docker-compose.prod.yml
+          echo "      retries: 5" >> deploy/docker-compose.prod.yml
+          echo "" >> deploy/docker-compose.prod.yml
+          echo "networks:" >> deploy/docker-compose.prod.yml
+          echo "  xfleet:" >> deploy/docker-compose.prod.yml
+          echo "    driver: bridge" >> deploy/docker-compose.prod.yml
+          echo "" >> deploy/docker-compose.prod.yml
+          echo "volumes:" >> deploy/docker-compose.prod.yml
+          echo "  postgres_data:" >> deploy/docker-compose.prod.yml
           
           # Create database initialization script
           cat > deploy/init-db.sql << 'EOF'
