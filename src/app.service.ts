@@ -13,7 +13,7 @@ export class AppService {
 
 
   getHello(): string {
-    return 'Hello World! checking i am testing CI CD pipeline';
+    return 'Finally i did CI-CD with github actions.';
   }
 
 
