@@ -221,33 +221,51 @@ jobs:
             fi
           }
 
-          # Create backup of current container if exists
-          if docker ps | grep -q $APP_CONTAINER; then
-            echo "📦 Creating backup of current container..."
-            docker stop $APP_CONTAINER
-            docker rename $APP_CONTAINER $BACKUP_CONTAINER
+          # Stop and remove any existing containers
+          echo "🧹 Cleaning up existing containers..."
+          
+          # Handle app container
+          if docker ps -a | grep -q $APP_CONTAINER; then
+            if docker ps | grep -q $APP_CONTAINER; then
+              echo "📦 Creating backup of current app container..."
+              docker stop $APP_CONTAINER
+              docker rename $APP_CONTAINER $BACKUP_CONTAINER
+            else
+              echo "🗑️ Removing stopped app container..."
+              docker rm $APP_CONTAINER || true
+            fi
           fi
-
+          
+          # Handle database container (remove completely for fresh start)
+          if docker ps -a | grep -q $DB_CONTAINER; then
+            echo "🗑️ Stopping and removing existing database container..."
+            docker stop $DB_CONTAINER || true
+            docker rm $DB_CONTAINER || true
+          fi
+          
+          # Remove any existing networks and volumes (docker-compose will recreate)
+          echo "🧹 Cleaning up networks and volumes..."
+          docker network rm x-fleet-deployment_xfleet 2>/dev/null || true
+          
           # Pull latest images
           echo "📥 Pulling latest images..."
           docker pull ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
           docker pull postgres:15-alpine
 
-          # Start database first (if not already running)
-          if ! docker ps | grep -q $DB_CONTAINER; then
-            echo "🗄️ Starting database container..."
-            $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d x-fleet-postgres
-            
-            # Wait for database to be healthy
-            if ! check_health $DB_CONTAINER; then
-              echo "❌ Database health check failed"
-              exit 1
-            fi
+          # Start all containers with docker-compose
+          echo "🚀 Starting all containers..."
+          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d
+          
+          # Wait for database to be healthy first
+          echo "⏳ Waiting for database to be ready..."
+          if ! check_health $DB_CONTAINER; then
+            echo "❌ Database health check failed"
+            rollback
+            exit 1
           fi
-
-          # Start application container
-          echo "🚀 Starting application container..."
-          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d x-fleet-app
+          
+          # Then wait for application to be healthy
+          echo "⏳ Waiting for application to be ready..."
 
           # Check if deployment was successful
           if check_health $APP_CONTAINER; then
