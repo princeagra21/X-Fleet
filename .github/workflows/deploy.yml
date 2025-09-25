@@ -85,53 +85,53 @@ jobs:
           
           # Create docker-compose.prod.yml for deployment
           cat > deploy/docker-compose.prod.yml << EOF
-          services:
-            x-fleet-app:
-              image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-              container_name: x-fleet-app
-              restart: unless-stopped
-              ports:
-                - "3001:3001"
-                - "80:3001"
-              env_file:
-                - .env
-              depends_on:
-                - x-fleet-postgres
-              networks:
-                - x-fleet-network
-              healthcheck:
-                test: ["CMD", "sh", "-c", "node --version || exit 1"]
-                interval: 30s
-                timeout: 10s
-                retries: 3
-                start_period: 30s
+services:
+  x-fleet-app:
+    image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+    container_name: x-fleet-app
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+      - "80:3001"
+    env_file:
+      - .env
+    depends_on:
+      - x-fleet-postgres
+    networks:
+      - x-fleet-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "node --version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-            x-fleet-postgres:
-              image: postgres:15-alpine
-              container_name: x-fleet-postgres
-              restart: unless-stopped
-              ports:
-                - "5432:5432"
-              env_file:
-                - .env
-              volumes:
-                - postgres_data:/var/lib/postgresql/data
-                - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-              networks:
-                - x-fleet-network
-              healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U \$$POSTGRES_USER"]
-                interval: 10s
-                timeout: 5s
-                retries: 5
+  x-fleet-postgres:
+    image: postgres:15-alpine
+    container_name: x-fleet-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - x-fleet-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \$$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-          networks:
-            x-fleet-network:
-              driver: bridge
+networks:
+  x-fleet-network:
+    driver: bridge
 
-          volumes:
-            postgres_data:
-          EOF
+volumes:
+  postgres_data:
+EOF
           
           # Create database initialization script
           cat > deploy/init-db.sql << 'EOF'
@@ -170,6 +170,15 @@ jobs:
           fi
           
           echo "📋 Using: $DOCKER_COMPOSE_CMD"
+          
+          # Debug: Show compose file content
+          echo "🔍 Debugging: Docker Compose file content:"
+          cat $COMPOSE_FILE
+          echo "=== End of compose file ==="
+          
+          # Validate compose file
+          echo "🔍 Validating Docker Compose file..."
+          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE config
           
           # Function to check container health
           check_health() {
@@ -264,6 +273,11 @@ jobs:
           EOF
 
           chmod +x deploy/deploy.sh
+          
+          # Debug: Show generated files
+          echo "=== Generated docker-compose.prod.yml ==="
+          cat deploy/docker-compose.prod.yml
+          echo "=== End of docker-compose.prod.yml ==="
 
       - name: 📤 Deploy to EC2 Server
         uses: appleboy/ssh-action@v1.0.3
