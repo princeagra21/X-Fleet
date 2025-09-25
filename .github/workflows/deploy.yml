@@ -88,7 +88,7 @@ jobs:
           services:
             x-fleet-app:
               image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-              container_name: ${{ env.CONTAINER_NAME }}
+              container_name: x-fleet-app
               restart: unless-stopped
               ports:
                 - "3001:3001"
@@ -98,7 +98,7 @@ jobs:
               depends_on:
                 - x-fleet-postgres
               networks:
-                - ${{ env.NETWORK_NAME }}
+                - x-fleet-network
               healthcheck:
                 test: ["CMD", "sh", "-c", "node --version || exit 1"]
                 interval: 30s
@@ -108,7 +108,7 @@ jobs:
 
             x-fleet-postgres:
               image: postgres:15-alpine
-              container_name: ${{ env.DB_CONTAINER_NAME }}
+              container_name: x-fleet-postgres
               restart: unless-stopped
               ports:
                 - "5432:5432"
@@ -118,7 +118,7 @@ jobs:
                 - postgres_data:/var/lib/postgresql/data
                 - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
               networks:
-                - ${{ env.NETWORK_NAME }}
+                - x-fleet-network
               healthcheck:
                 test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
                 interval: 10s
@@ -126,7 +126,7 @@ jobs:
                 retries: 5
 
           networks:
-            ${{ env.NETWORK_NAME }}:
+            x-fleet-network:
               driver: bridge
 
           volumes:
@@ -155,9 +155,9 @@ jobs:
 
           # Variables
           COMPOSE_FILE="docker-compose.prod.yml"
-          APP_CONTAINER="${{ env.CONTAINER_NAME }}"
-          DB_CONTAINER="${{ env.DB_CONTAINER_NAME }}"
-          BACKUP_CONTAINER="${APP_CONTAINER}-backup"
+          APP_CONTAINER="x-fleet-app"
+          DB_CONTAINER="x-fleet-postgres"
+          BACKUP_CONTAINER="x-fleet-app-backup"
 
           # Set docker compose command based on availability
           if command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1; then
