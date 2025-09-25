@@ -1,0 +1,379 @@
+name: 🚀 X-Fleet CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: x-fleet
+  CONTAINER_NAME: x-fleet-app
+  DB_CONTAINER_NAME: x-fleet-postgres
+  NETWORK_NAME: x-fleet-network
+
+jobs:
+  # Build and Test Job
+  build:
+    name: 🏗️ Build & Test
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🏷️ Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: 🔨 Build and Push Docker Image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: 🧪 Test Docker Image
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Testing built image..."
+          docker run --rm --entrypoint="" ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest node --version
+          docker run --rm --entrypoint="" ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest ls -la /app/dist
+
+  # Deploy Job (only on main branch)
+  deploy:
+    name: 🚀 Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 📝 Create Deployment Files
+        run: |
+          # Create deployment directory
+          mkdir -p deploy
+          
+          # Create docker-compose.prod.yml for deployment
+          cat > deploy/docker-compose.prod.yml << 'EOF'
+          services:
+            x-fleet-app:
+              image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+              container_name: ${{ env.CONTAINER_NAME }}
+              restart: unless-stopped
+              ports:
+                - "3001:3001"
+                - "80:3001"
+              env_file:
+                - .env
+              depends_on:
+                - x-fleet-postgres
+              networks:
+                - ${{ env.NETWORK_NAME }}
+              healthcheck:
+                test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+                start_period: 30s
+
+            x-fleet-postgres:
+              image: postgres:15-alpine
+              container_name: ${{ env.DB_CONTAINER_NAME }}
+              restart: unless-stopped
+              ports:
+                - "5432:5432"
+              env_file:
+                - .env
+              volumes:
+                - postgres_data:/var/lib/postgresql/data
+                - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+              networks:
+                - ${{ env.NETWORK_NAME }}
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+
+          networks:
+            ${{ env.NETWORK_NAME }}:
+              driver: bridge
+
+          volumes:
+            postgres_data:
+          EOF
+          
+          # Create database initialization script
+          cat > deploy/init-db.sql << 'EOF'
+          -- Create multiple databases for the application
+          CREATE DATABASE "FleetStack_db";
+          CREATE DATABASE "FleetStack_logs";  
+          CREATE DATABASE "FleetStack_Address";
+
+          -- Grant privileges
+          GRANT ALL PRIVILEGES ON DATABASE "FleetStack_db" TO postgres;
+          GRANT ALL PRIVILEGES ON DATABASE "FleetStack_logs" TO postgres;
+          GRANT ALL PRIVILEGES ON DATABASE "FleetStack_Address" TO postgres;
+          EOF
+          
+          # Create deployment script
+          cat > deploy/deploy.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          echo "🚀 Starting X-Fleet deployment..."
+
+          # Variables
+          COMPOSE_FILE="docker-compose.prod.yml"
+          APP_CONTAINER="${{ env.CONTAINER_NAME }}"
+          DB_CONTAINER="${{ env.DB_CONTAINER_NAME }}"
+          BACKUP_CONTAINER="${APP_CONTAINER}-backup"
+
+          # Function to check container health
+          check_health() {
+            local container_name=$1
+            local max_attempts=30
+            local attempt=1
+            
+            echo "⏳ Checking health of $container_name..."
+            
+            while [ $attempt -le $max_attempts ]; do
+              if [ "$(docker inspect --format='{{.State.Health.Status}}' $container_name 2>/dev/null)" = "healthy" ]; then
+                echo "✅ $container_name is healthy"
+                return 0
+              fi
+              
+              echo "🔄 Attempt $attempt/$max_attempts: Waiting for $container_name to be healthy..."
+              sleep 10
+              ((attempt++))
+            done
+            
+            echo "❌ $container_name failed health check"
+            return 1
+          }
+
+          # Function to rollback
+          rollback() {
+            echo "🔄 Rolling back to previous version..."
+            
+            if docker ps -a | grep -q $BACKUP_CONTAINER; then
+              echo "📦 Stopping current container..."
+              docker stop $APP_CONTAINER || true
+              docker rm $APP_CONTAINER || true
+              
+              echo "🔄 Starting backup container..."
+              docker start $BACKUP_CONTAINER
+              docker rename $BACKUP_CONTAINER $APP_CONTAINER
+              
+              echo "✅ Rollback completed"
+            else
+              echo "❌ No backup container found for rollback"
+              exit 1
+            fi
+          }
+
+          # Create backup of current container if exists
+          if docker ps | grep -q $APP_CONTAINER; then
+            echo "📦 Creating backup of current container..."
+            docker stop $APP_CONTAINER
+            docker rename $APP_CONTAINER $BACKUP_CONTAINER
+          fi
+
+          # Pull latest images
+          echo "📥 Pulling latest images..."
+          docker pull ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker pull postgres:15-alpine
+
+          # Start database first (if not already running)
+          if ! docker ps | grep -q $DB_CONTAINER; then
+            echo "🗄️ Starting database container..."
+            docker-compose -f $COMPOSE_FILE up -d $DB_CONTAINER
+            
+            # Wait for database to be healthy
+            if ! check_health $DB_CONTAINER; then
+              echo "❌ Database health check failed"
+              exit 1
+            fi
+          fi
+
+          # Start application container
+          echo "🚀 Starting application container..."
+          docker-compose -f $COMPOSE_FILE up -d $APP_CONTAINER
+
+          # Check if deployment was successful
+          if check_health $APP_CONTAINER; then
+            echo "✅ Deployment successful!"
+            
+            # Remove backup container if deployment succeeded
+            if docker ps -a | grep -q $BACKUP_CONTAINER; then
+              echo "🧹 Removing backup container..."
+              docker rm $BACKUP_CONTAINER || true
+            fi
+            
+            # Clean up unused images
+            docker image prune -f
+            
+            echo "🎉 X-Fleet deployment completed successfully!"
+          else
+            echo "❌ Deployment failed!"
+            rollback
+            exit 1
+          fi
+          EOF
+
+          chmod +x deploy/deploy.sh
+
+      - name: 📤 Deploy to EC2 Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_timeout: 300s
+          command_timeout: 60s
+          script: |
+            # Create deployment directory
+            mkdir -p ~/x-fleet-deployment
+            cd ~/x-fleet-deployment
+            
+            # Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              echo "🐳 Installing Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker $USER
+              newgrp docker
+            fi
+            
+            # Install Docker Compose if not present
+            if ! docker compose version &> /dev/null; then
+              echo "🐙 Installing Docker Compose..."
+              sudo apt-get update
+              sudo apt-get install -y docker-compose-plugin
+            fi
+            
+            # Login to Docker registry
+            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+            
+            echo "🚀 Starting deployment process..."
+
+      - name: 📁 Copy Deployment Files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: "deploy/*"
+          target: "~/x-fleet-deployment/"
+          strip_components: 1
+
+      - name: 🚀 Execute Deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_timeout: 600s
+          script: |
+            cd ~/x-fleet-deployment
+            
+            # Check if .env file exists, create if not
+            if [ ! -f .env ]; then
+              echo "📝 Creating .env file from environment variables..."
+              cat > .env << 'EOF'
+            # Environment Configuration for FleetStack Backend
+            NODE_ENV=production
+            PORT=3001
+
+            # Database Configuration
+            POSTGRES_USER=postgres
+            POSTGRES_PASSWORD=Stack@321
+            POSTGRES_DB=postgres
+
+            # Primary Database Configuration (FleetStack_db)
+            PRIMARY_DB_HOST=x-fleet-postgres
+            PRIMARY_DB_USER=postgres
+            PRIMARY_DB_PORT=5432
+            PRIMARY_DB_PASSWORD=Stack@321
+            PRIMARY_DB_NAME=FleetStack_db
+            PRIMARY_DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_db?schema=public"
+
+            # Logs Database Configuration (FleetStack_logs)
+            LOGS_DB_HOST=x-fleet-postgres
+            LOGS_DB_USER=postgres
+            LOGS_DB_PORT=5432
+            LOGS_DB_PASSWORD=Stack@321
+            LOGS_DB_NAME=FleetStack_logs
+            LOGS_DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_logs?schema=public"
+
+            # Address Database Configuration (FleetStack_Address)
+            ADDRESS_DB_HOST=x-fleet-postgres
+            ADDRESS_DB_USER=postgres
+            ADDRESS_DB_PORT=5432
+            ADDRESS_DB_PASSWORD=Stack@321
+            ADDRESS_DB_NAME=FleetStack_Address
+            ADDRESS_DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_Address?schema=public"
+
+            # Default DATABASE_URL for Prisma
+            DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_db?schema=public"
+            EOF
+            fi
+            
+            # Make deployment script executable and run it
+            chmod +x deploy.sh
+            ./deploy.sh
+
+  # Notification Job
+  notify:
+    name: 📢 Notify
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 📊 Deployment Status
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "✅ Deployment succeeded!"
+            echo "🌍 Application URL: http://${{ secrets.EC2_HOST }}:3001"
+            echo "🌐 Alternative URL: http://${{ secrets.EC2_HOST }}:80"
+            echo "🗄️ Database URL: ${{ secrets.EC2_HOST }}:5432"
+          elif [[ "${{ needs.deploy.result }}" == "failure" ]]; then
+            echo "❌ Deployment failed!"
+            exit 1
+          elif [[ "${{ needs.deploy.result }}" == "skipped" ]]; then
+            echo "⏭️ Deployment skipped (not main branch)"
+          fi

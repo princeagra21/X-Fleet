@@ -1,0 +1,27 @@
+# Ignore node_modules (can be reinstalled in container)
+node_modules
+
+# Ignore logs
+*.log
+logs/
+npm-debug.log*
+
+# Ignore OS / editor specific files
+.DS_Store
+Thumbs.db
+*.swp
+
+# Ignore version control
+.git
+.gitignore
+
+# Ignore environment and secret files
+#.env
+*.pem
+*.key
+*.crt
+
+# Ignore build outputs
+#dist/
+build/
+coverage/
