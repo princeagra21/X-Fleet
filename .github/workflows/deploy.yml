@@ -159,6 +159,18 @@ jobs:
           DB_CONTAINER="${{ env.DB_CONTAINER_NAME }}"
           BACKUP_CONTAINER="${APP_CONTAINER}-backup"
 
+          # Set docker compose command based on availability
+          if command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1; then
+            DOCKER_COMPOSE_CMD="docker compose"
+          elif command -v docker-compose &> /dev/null; then
+            DOCKER_COMPOSE_CMD="docker-compose"
+          else
+            echo "❌ Neither 'docker compose' nor 'docker-compose' found"
+            exit 1
+          fi
+          
+          echo "📋 Using: $DOCKER_COMPOSE_CMD"
+          
           # Function to check container health
           check_health() {
             local container_name=$1
@@ -217,7 +229,7 @@ jobs:
           # Start database first (if not already running)
           if ! docker ps | grep -q $DB_CONTAINER; then
             echo "🗄️ Starting database container..."
-            docker-compose -f $COMPOSE_FILE up -d $DB_CONTAINER
+            $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d x-fleet-postgres
             
             # Wait for database to be healthy
             if ! check_health $DB_CONTAINER; then
@@ -228,7 +240,7 @@ jobs:
 
           # Start application container
           echo "🚀 Starting application container..."
-          docker-compose -f $COMPOSE_FILE up -d $APP_CONTAINER
+          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d x-fleet-app
 
           # Check if deployment was successful
           if check_health $APP_CONTAINER; then
@@ -277,10 +289,20 @@ jobs:
             fi
             
             # Install Docker Compose if not present
-            if ! docker compose version &> /dev/null; then
+            if ! docker compose version &> /dev/null && ! docker-compose version &> /dev/null; then
               echo "🐙 Installing Docker Compose..."
               sudo apt-get update
               sudo apt-get install -y docker-compose-plugin
+              
+              # Fallback: install standalone docker-compose if plugin fails
+              if ! docker compose version &> /dev/null; then
+                echo "🔄 Installing standalone docker-compose..."
+                sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+              fi
+            else
+              echo "✅ Docker Compose already installed"
+              docker compose version 2>/dev/null || docker-compose version
             fi
             
             # Login to Docker registry
