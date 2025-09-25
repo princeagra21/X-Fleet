@@ -13,10 +13,13 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Generate Prisma clients first
+RUN npx prisma generate --schema=prisma/primary.prisma
+RUN npx prisma generate --schema=prisma/logs.prisma
+RUN npx prisma generate --schema=prisma/address.prisma
+
 # Build the application
 RUN npm run build
-
-# Skip Prisma generation - using pre-built client
 
 # Production stage
 FROM node:20-alpine AS production
@@ -30,11 +33,20 @@ RUN apk add --no-cache dumb-init
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001 -G nodejs
 
-# Copy everything from builder (optimized build)
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/generated ./generated
-COPY --from=builder /app/node_modules ./node_modules
+# Copy package files and install only production dependencies
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/prisma ./prisma
+
+# Install only production dependencies
+RUN npm ci --only=production --omit=dev && npm cache clean --force
+
+# Generate Prisma clients in production stage
+RUN npx prisma generate --schema=prisma/primary.prisma
+RUN npx prisma generate --schema=prisma/logs.prisma
+RUN npx prisma generate --schema=prisma/address.prisma
+
+# Copy built application and generated files
+COPY --from=builder /app/dist ./dist
 
 # Change ownership of app directory
 RUN chown -R nestjs:nodejs /app
