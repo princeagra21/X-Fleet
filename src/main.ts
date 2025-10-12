@@ -9,6 +9,7 @@ import { ValidationPipe } from './common/pipes/validation.pipe';
 import { ValidationPipe as NestValidationPipe } from '@nestjs/common';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
+import fastifyCors from '@fastify/cors';
 import * as path from 'node:path';
 
 async function bootstrap() {
@@ -21,7 +22,21 @@ async function bootstrap() {
     }
   );
 
-
+  // Register CORS plugin
+  // Cast to any to avoid Fastify version/type mismatches between packages
+  await (app.register as any)(fastifyCors as any, {
+    origin: process.env.CORS_ORIGIN || true, // Allow all origins in development, specify in production
+    methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Cache-Control'
+    ],
+    credentials: true, // Allow credentials (cookies, authorization headers)
+  });
 
   // after creating `app`:
     // cast to any to avoid Fastify version/type mismatches between packages
