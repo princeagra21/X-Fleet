@@ -297,6 +297,33 @@ jobs:
             done
             
             echo "❌ Failed to free port $port after $max_attempts attempts"
+            
+            # Show diagnostic information before giving up
+            echo "🔍 DIAGNOSTIC: What's using port $port?"
+            
+            if command -v lsof >/dev/null 2>&1; then
+              echo "lsof output:"
+              lsof -i :$port 2>&1 || echo "lsof found nothing on port $port"
+            fi
+            
+            if command -v netstat >/dev/null 2>&1; then
+              echo "netstat output:"
+              netstat -tlnp 2>/dev/null | grep ":$port " || echo "netstat found nothing on port $port"
+            fi
+            
+            if command -v ss >/dev/null 2>&1; then
+              echo "ss output:"
+              ss -tlnp 2>/dev/null | grep ":$port " || echo "ss found nothing on port $port"
+            fi
+            
+            if command -v fuser >/dev/null 2>&1; then
+              echo "fuser verbose output:"
+              fuser -v ${port}/tcp 2>&1 || echo "fuser found nothing on port $port"
+            fi
+            
+            echo "Docker containers with port mappings:"
+            docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}" 2>/dev/null | grep "$port" || echo "No Docker containers using port $port"
+            
             return 1
           }
           
@@ -322,11 +349,16 @@ jobs:
           
           # First attempt - kill processes using our ports
           echo "🔴 Phase 1: Standard port cleanup"
-          kill_port_processes 3001
-          kill_port_processes 5432
+          PHASE1_SUCCESS=true
+          kill_port_processes 3001 || PHASE1_SUCCESS=false
+          kill_port_processes 5432 || PHASE1_SUCCESS=false
           
-          # If ports are still in use, try alternative approaches
-          if port_in_use 3001 || port_in_use 5432; then
+          if [ "$PHASE1_SUCCESS" = false ]; then
+            echo "⚠️ Phase 1 cleanup had issues, but continuing to Phase 2..."
+          fi
+          
+          # If ports are still in use or Phase 1 failed, try alternative approaches
+          if [ "$PHASE1_SUCCESS" = false ] || port_in_use 3001 || port_in_use 5432; then
             echo "🔴 Phase 2: Alternative cleanup methods"
             
             # Try to restart Docker daemon as a last resort
@@ -373,6 +405,20 @@ jobs:
           docker stop $APP_CONTAINER $DB_CONTAINER 2>/dev/null || true
           docker rm -f $APP_CONTAINER $DB_CONTAINER 2>/dev/null || true
           docker rm -f $BACKUP_CONTAINER 2>/dev/null || true
+          
+          # Also remove any containers with similar names that might be running
+          echo "🧹 Removing any containers with x-fleet in the name..."
+          docker ps -a --filter "name=x-fleet" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+          
+          # Remove any containers that might be using ports 3001 or 5432
+          echo "🧹 Removing containers using ports 3001 and 5432..."
+          for port in 3001 5432; do
+            CONTAINERS=$(docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}" | grep ":$port->" | awk '{print $1}' || true)
+            if [ ! -z "$CONTAINERS" ]; then
+              echo "Removing containers using port $port: $CONTAINERS"
+              echo "$CONTAINERS" | xargs -r docker rm -f 2>/dev/null || true
+            fi
+          done
           
           # Also clean up any containers that might be using our image
           echo "🧹 Removing containers using our image..."
