@@ -223,28 +223,119 @@ jobs:
           # Stop and remove any existing containers
           echo "🧹 Cleaning up existing containers..."
           
-          # Handle app container
-          if docker ps -a | grep -q $APP_CONTAINER; then
-            if docker ps | grep -q $APP_CONTAINER; then
-              echo "📦 Creating backup of current app container..."
-              docker stop $APP_CONTAINER
-              docker rename $APP_CONTAINER $BACKUP_CONTAINER
-            else
-              echo "🗑️ Removing stopped app container..."
-              docker rm $APP_CONTAINER || true
+          # Force stop and remove any containers using our ports
+          echo "🔍 Checking for processes using ports 3001 and 5432..."
+          
+          # Function to kill processes on a port
+          kill_port_processes() {
+            local port=$1
+            
+            # Try lsof first
+            if command -v lsof >/dev/null 2>&1; then
+              PROCESS=$(lsof -ti :$port 2>/dev/null || true)
+              if [ ! -z "$PROCESS" ]; then
+                echo "⚠️ Killing process using port $port: $PROCESS"
+                kill -9 $PROCESS 2>/dev/null || true
+                sleep 2
+              fi
             fi
-          fi
+            
+            # Try netstat + kill as fallback
+            if command -v netstat >/dev/null 2>&1; then
+              PROCESS=$(netstat -tlnp 2>/dev/null | grep ":$port " | awk '{print $7}' | cut -d'/' -f1 | grep -v '^-$' || true)
+              if [ ! -z "$PROCESS" ]; then
+                echo "⚠️ Killing process using port $port (netstat): $PROCESS"
+                kill -9 $PROCESS 2>/dev/null || true
+                sleep 2
+              fi
+            fi
+            
+            # Try ss + kill as another fallback
+            if command -v ss >/dev/null 2>&1; then
+              PROCESS=$(ss -tlnp 2>/dev/null | grep ":$port " | sed 's/.*pid=\([0-9]*\).*/\1/' | head -1 || true)
+              if [ ! -z "$PROCESS" ] && [ "$PROCESS" != "$(ss -tlnp 2>/dev/null | grep ":$port " | head -1)" ]; then
+                echo "⚠️ Killing process using port $port (ss): $PROCESS"
+                kill -9 $PROCESS 2>/dev/null || true
+                sleep 2
+              fi
+            fi
+          }
           
-          # Handle database container (remove completely for fresh start)
-          if docker ps -a | grep -q $DB_CONTAINER; then
-            echo "🗑️ Stopping and removing existing database container..."
-            docker stop $DB_CONTAINER || true
-            docker rm $DB_CONTAINER || true
-          fi
+          # Kill processes using our ports
+          kill_port_processes 3001
+          kill_port_processes 5432
           
-          # Remove any existing networks and volumes (docker-compose will recreate)
+          # Force stop and remove ALL containers with our names (including any orphaned ones)
+          echo "🧹 Force stopping and removing containers by name..."
+          docker stop $APP_CONTAINER $DB_CONTAINER 2>/dev/null || true
+          docker rm -f $APP_CONTAINER $DB_CONTAINER 2>/dev/null || true
+          docker rm -f $BACKUP_CONTAINER 2>/dev/null || true
+          
+          # Also clean up any containers that might be using our image
+          echo "🧹 Removing containers using our image..."
+          docker ps -a --filter "ancestor=${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest" -q | xargs -r docker rm -f
+          
+          # Stop and remove any compose stack
+          echo "🛑 Stopping any existing compose stack..."
+          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down --remove-orphans --volumes 2>/dev/null || true
+          
+          # Remove any existing networks and volumes 
           echo "🧹 Cleaning up networks and volumes..."
           docker network rm x-fleet-deployment_xfleet 2>/dev/null || true
+          docker volume rm x-fleet-deployment_postgres_data 2>/dev/null || true
+          
+          # Wait for ports to be fully released
+          echo "⏳ Waiting for ports to be released..."
+          sleep 5
+          
+          # Function to check if port is available
+          check_port_available() {
+            local port=$1
+            
+            # Try lsof first
+            if command -v lsof >/dev/null 2>&1; then
+              if lsof -ti :$port >/dev/null 2>&1; then
+                return 1  # Port is in use
+              fi
+            fi
+            
+            # Try netstat as fallback
+            if command -v netstat >/dev/null 2>&1; then
+              if netstat -tln 2>/dev/null | grep -q ":$port "; then
+                return 1  # Port is in use
+              fi
+            fi
+            
+            # Try ss as another fallback
+            if command -v ss >/dev/null 2>&1; then
+              if ss -tln 2>/dev/null | grep -q ":$port "; then
+                return 1  # Port is in use
+              fi
+            fi
+            
+            return 0  # Port is available
+          }
+          
+          # Verify ports are now available
+          for port in 3001 5432; do
+            if ! check_port_available $port; then
+              echo "❌ Port $port is still in use after cleanup!"
+              
+              # Show what's using the port for debugging
+              if command -v lsof >/dev/null 2>&1; then
+                lsof -i :$port 2>/dev/null || true
+              elif command -v netstat >/dev/null 2>&1; then
+                netstat -tlnp 2>/dev/null | grep ":$port " || true
+              elif command -v ss >/dev/null 2>&1; then
+                ss -tlnp 2>/dev/null | grep ":$port " || true
+              fi
+              
+              echo "❌ Cannot proceed with deployment - port conflict!"
+              exit 1
+            else
+              echo "✅ Port $port is available"
+            fi
+          done
           
           # Pull latest images
           echo "📥 Pulling latest images..."
