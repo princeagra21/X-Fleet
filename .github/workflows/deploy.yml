@@ -320,9 +320,53 @@ jobs:
             return 1  # Port is free
           }
           
-          # Kill processes using our ports
+          # First attempt - kill processes using our ports
+          echo "🔴 Phase 1: Standard port cleanup"
           kill_port_processes 3001
           kill_port_processes 5432
+          
+          # If ports are still in use, try alternative approaches
+          if port_in_use 3001 || port_in_use 5432; then
+            echo "🔴 Phase 2: Alternative cleanup methods"
+            
+            # Try to restart Docker daemon as a last resort
+            echo "🔄 Restarting Docker daemon to clear port conflicts..."
+            sudo systemctl restart docker || sudo service docker restart || true
+            sleep 10
+            
+            # Try to use systemd to stop any potential services
+            echo "🛑 Attempting to stop any potential systemd services on the ports..."
+            sudo systemctl stop $(sudo systemctl list-units --type=service --state=running | grep -E '(3001|5432)' | awk '{print $1}' || true) 2>/dev/null || true
+            
+            # Check for Docker containers that might be holding the ports
+            echo "🔍 Checking for Docker containers using the ports..."
+            CONTAINERS_3001=$(docker ps -a --filter "publish=3001" --format "{{.ID}}" 2>/dev/null || true)
+            CONTAINERS_5432=$(docker ps -a --filter "publish=5432" --format "{{.ID}}" 2>/dev/null || true)
+            
+            if [ ! -z "$CONTAINERS_3001" ]; then
+              echo "🔴 Found containers using port 3001: $CONTAINERS_3001"
+              echo "$CONTAINERS_3001" | xargs -r docker rm -f
+            fi
+            
+            if [ ! -z "$CONTAINERS_5432" ]; then
+              echo "🔴 Found containers using port 5432: $CONTAINERS_5432"
+              echo "$CONTAINERS_5432" | xargs -r docker rm -f
+            fi
+            
+            # Nuclear option: try to use kill -9 on all Docker processes
+            echo "💥 Nuclear option: Force killing Docker processes"
+            sudo pkill -f "docker" 2>/dev/null || true
+            sleep 5
+            
+            # Restart Docker again
+            echo "🔄 Final Docker restart..."
+            sudo systemctl restart docker || sudo service docker restart || true
+            sleep 15
+            
+            # Wait for Docker to be ready
+            echo "⏳ Waiting for Docker to be ready..."
+            timeout 60 bash -c 'until docker ps >/dev/null 2>&1; do sleep 2; done' || echo "Warning: Docker might not be fully ready"
+          fi
           
           # Force stop and remove ALL containers with our names (including any orphaned ones)
           echo "🧹 Force stopping and removing containers by name..."
@@ -354,27 +398,52 @@ jobs:
               echo "❌ Port $port is still in use after cleanup!"
               
               # Show detailed information about what's using the port
-              echo "🔍 Debugging port $port usage:"
+              echo "🔍 Comprehensive port $port diagnosis:"
               
+              echo "=== System Information ==="
+              uname -a || true
+              echo "Docker version:"
+              docker --version 2>/dev/null || echo "Docker not available"
+              echo "Docker status:"
+              docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}\t{{.Status}}" 2>/dev/null || echo "Cannot list Docker containers"
+              
+              echo "=== Process Information ==="
               if command -v lsof >/dev/null 2>&1; then
-                echo "--- lsof output ---"
-                lsof -i :$port 2>/dev/null || echo "No lsof results"
+                echo "--- lsof output for port $port ---"
+                lsof -i :$port 2>/dev/null || echo "No lsof results for port $port"
+                echo "--- lsof output for all listening ports ---"
+                lsof -i -P -n | grep LISTEN | grep -E ":(3001|5432)" || echo "No listening ports found"
               fi
               
               if command -v netstat >/dev/null 2>&1; then
-                echo "--- netstat output ---"
-                netstat -tlnp 2>/dev/null | grep ":$port " || echo "No netstat results"
+                echo "--- netstat output for port $port ---"
+                netstat -tlnp 2>/dev/null | grep ":$port " || echo "No netstat results for port $port"
+                echo "--- netstat output for all listening ports ---"
+                netstat -tlnp 2>/dev/null | grep -E ":(3001|5432)" || echo "No listening ports found"
               fi
               
               if command -v ss >/dev/null 2>&1; then
-                echo "--- ss output ---"
-                ss -tlnp 2>/dev/null | grep ":$port " || echo "No ss results"
+                echo "--- ss output for port $port ---"
+                ss -tlnp 2>/dev/null | grep ":$port " || echo "No ss results for port $port"
+                echo "--- ss output for all listening ports ---"
+                ss -tlnp 2>/dev/null | grep -E ":(3001|5432)" || echo "No listening ports found"
               fi
               
               if command -v fuser >/dev/null 2>&1; then
-                echo "--- fuser output ---"
-                fuser -v ${port}/tcp 2>/dev/null || echo "No fuser results"
+                echo "--- fuser verbose output ---"
+                fuser -v ${port}/tcp 2>&1 || echo "No fuser results for port $port"
               fi
+              
+              echo "=== Docker Specific Checks ==="
+              echo "Docker containers with port mappings:"
+              docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}" 2>/dev/null | grep -E "(3001|5432)" || echo "No containers found with port mappings"
+              
+              echo "Docker networks:"
+              docker network ls 2>/dev/null || echo "Cannot list Docker networks"
+              
+              echo "=== System Network Status ==="
+              echo "Active internet connections:"
+              netstat -tuln 2>/dev/null | head -20 || echo "Cannot show network connections"
               
               echo "🔫 Last resort: trying to kill any remaining processes on port $port"
               
