@@ -91,7 +91,6 @@ jobs:
           echo "    restart: unless-stopped" >> deploy/docker-compose.prod.yml
           echo "    ports:" >> deploy/docker-compose.prod.yml
           echo "      - \"3001:3001\"" >> deploy/docker-compose.prod.yml
-          echo "      - \"80:3001\"" >> deploy/docker-compose.prod.yml
           echo "    env_file:" >> deploy/docker-compose.prod.yml
           echo "      - .env" >> deploy/docker-compose.prod.yml
           echo "    depends_on:" >> deploy/docker-compose.prod.yml
@@ -421,7 +420,6 @@ jobs:
           if [[ "${{ needs.deploy.result }}" == "success" ]]; then
             echo "✅ Deployment succeeded!"
             echo "🌍 Application URL: http://${{ secrets.EC2_HOST }}:3001"
-            echo "🌐 Alternative URL: http://${{ secrets.EC2_HOST }}:80"
             echo "🗄️ Database URL: ${{ secrets.EC2_HOST }}:5432"
           elif [[ "${{ needs.deploy.result }}" == "failure" ]]; then
             echo "❌ Deployment failed!"
