@@ -229,36 +229,95 @@ jobs:
           # Function to kill processes on a port
           kill_port_processes() {
             local port=$1
+            local max_attempts=5
+            local attempt=1
             
-            # Try lsof first
-            if command -v lsof >/dev/null 2>&1; then
-              PROCESS=$(lsof -ti :$port 2>/dev/null || true)
-              if [ ! -z "$PROCESS" ]; then
-                echo "⚠️ Killing process using port $port: $PROCESS"
-                kill -9 $PROCESS 2>/dev/null || true
+            echo "🔍 Attempting to free port $port..."
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "🔄 Attempt $attempt/$max_attempts to free port $port"
+              
+              # Kill all processes using the port with multiple methods
+              KILLED=false
+              
+              # Method 1: lsof
+              if command -v lsof >/dev/null 2>&1; then
+                PROCESSES=$(lsof -ti :$port 2>/dev/null || true)
+                if [ ! -z "$PROCESSES" ]; then
+                  echo "⚠️ Found processes using port $port (lsof): $PROCESSES"
+                  echo "$PROCESSES" | xargs -r kill -9 2>/dev/null || true
+                  KILLED=true
+                fi
+              fi
+              
+              # Method 2: netstat
+              if command -v netstat >/dev/null 2>&1; then
+                PROCESSES=$(netstat -tlnp 2>/dev/null | grep ":$port " | awk '{print $7}' | cut -d'/' -f1 | grep -E '^[0-9]+$' || true)
+                if [ ! -z "$PROCESSES" ]; then
+                  echo "⚠️ Found processes using port $port (netstat): $PROCESSES"
+                  echo "$PROCESSES" | xargs -r kill -9 2>/dev/null || true
+                  KILLED=true
+                fi
+              fi
+              
+              # Method 3: ss
+              if command -v ss >/dev/null 2>&1; then
+                PROCESSES=$(ss -tlnp 2>/dev/null | grep ":$port " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u || true)
+                if [ ! -z "$PROCESSES" ]; then
+                  echo "⚠️ Found processes using port $port (ss): $PROCESSES"
+                  echo "$PROCESSES" | xargs -r kill -9 2>/dev/null || true
+                  KILLED=true
+                fi
+              fi
+              
+              # Method 4: fuser (more aggressive)
+              if command -v fuser >/dev/null 2>&1; then
+                echo "🔫 Using fuser to kill processes on port $port"
+                fuser -k ${port}/tcp 2>/dev/null || true
+                KILLED=true
+              fi
+              
+              if [ "$KILLED" = true ]; then
+                echo "⏳ Waiting for processes to terminate..."
+                sleep 3
+              fi
+              
+              # Check if port is now free
+              if ! port_in_use $port; then
+                echo "✅ Port $port is now free"
+                return 0
+              fi
+              
+              ((attempt++))
+              
+              if [ $attempt -le $max_attempts ]; then
+                echo "⚠️ Port $port still in use, retrying..."
                 sleep 2
               fi
+            done
+            
+            echo "❌ Failed to free port $port after $max_attempts attempts"
+            return 1
+          }
+          
+          # Function to check if a port is in use
+          port_in_use() {
+            local port=$1
+            
+            # Try multiple methods to check if port is in use
+            if command -v lsof >/dev/null 2>&1 && lsof -ti :$port >/dev/null 2>&1; then
+              return 0  # Port is in use
             fi
             
-            # Try netstat + kill as fallback
-            if command -v netstat >/dev/null 2>&1; then
-              PROCESS=$(netstat -tlnp 2>/dev/null | grep ":$port " | awk '{print $7}' | cut -d'/' -f1 | grep -v '^-$' || true)
-              if [ ! -z "$PROCESS" ]; then
-                echo "⚠️ Killing process using port $port (netstat): $PROCESS"
-                kill -9 $PROCESS 2>/dev/null || true
-                sleep 2
-              fi
+            if command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | grep -q ":$port "; then
+              return 0  # Port is in use
             fi
             
-            # Try ss + kill as another fallback
-            if command -v ss >/dev/null 2>&1; then
-              PROCESS=$(ss -tlnp 2>/dev/null | grep ":$port " | sed 's/.*pid=\([0-9]*\).*/\1/' | head -1 || true)
-              if [ ! -z "$PROCESS" ] && [ "$PROCESS" != "$(ss -tlnp 2>/dev/null | grep ":$port " | head -1)" ]; then
-                echo "⚠️ Killing process using port $port (ss): $PROCESS"
-                kill -9 $PROCESS 2>/dev/null || true
-                sleep 2
-              fi
+            if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q ":$port "; then
+              return 0  # Port is in use
             fi
+            
+            return 1  # Port is free
           }
           
           # Kill processes using our ports
@@ -288,49 +347,49 @@ jobs:
           echo "⏳ Waiting for ports to be released..."
           sleep 5
           
-          # Function to check if port is available
-          check_port_available() {
-            local port=$1
-            
-            # Try lsof first
-            if command -v lsof >/dev/null 2>&1; then
-              if lsof -ti :$port >/dev/null 2>&1; then
-                return 1  # Port is in use
-              fi
-            fi
-            
-            # Try netstat as fallback
-            if command -v netstat >/dev/null 2>&1; then
-              if netstat -tln 2>/dev/null | grep -q ":$port "; then
-                return 1  # Port is in use
-              fi
-            fi
-            
-            # Try ss as another fallback
-            if command -v ss >/dev/null 2>&1; then
-              if ss -tln 2>/dev/null | grep -q ":$port "; then
-                return 1  # Port is in use
-              fi
-            fi
-            
-            return 0  # Port is available
-          }
-          
-          # Verify ports are now available
+          # Verify ports are now available with detailed debugging
+          echo "🔍 Final port availability check..."
           for port in 3001 5432; do
-            if ! check_port_available $port; then
+            if port_in_use $port; then
               echo "❌ Port $port is still in use after cleanup!"
               
-              # Show what's using the port for debugging
+              # Show detailed information about what's using the port
+              echo "🔍 Debugging port $port usage:"
+              
               if command -v lsof >/dev/null 2>&1; then
-                lsof -i :$port 2>/dev/null || true
-              elif command -v netstat >/dev/null 2>&1; then
-                netstat -tlnp 2>/dev/null | grep ":$port " || true
-              elif command -v ss >/dev/null 2>&1; then
-                ss -tlnp 2>/dev/null | grep ":$port " || true
+                echo "--- lsof output ---"
+                lsof -i :$port 2>/dev/null || echo "No lsof results"
               fi
               
-              echo "❌ Cannot proceed with deployment - port conflict!"
+              if command -v netstat >/dev/null 2>&1; then
+                echo "--- netstat output ---"
+                netstat -tlnp 2>/dev/null | grep ":$port " || echo "No netstat results"
+              fi
+              
+              if command -v ss >/dev/null 2>&1; then
+                echo "--- ss output ---"
+                ss -tlnp 2>/dev/null | grep ":$port " || echo "No ss results"
+              fi
+              
+              if command -v fuser >/dev/null 2>&1; then
+                echo "--- fuser output ---"
+                fuser -v ${port}/tcp 2>/dev/null || echo "No fuser results"
+              fi
+              
+              echo "🔫 Last resort: trying to kill any remaining processes on port $port"
+              
+              # Try one more aggressive cleanup
+              if command -v fuser >/dev/null 2>&1; then
+                fuser -k ${port}/tcp 2>/dev/null || true
+                sleep 3
+                if ! port_in_use $port; then
+                  echo "✅ Port $port freed after last resort cleanup"
+                  continue
+                fi
+              fi
+              
+              echo "❌ CRITICAL: Cannot proceed with deployment - port $port conflict persists!"
+              echo "🚑 You may need to manually investigate and kill processes on the server"
               exit 1
             else
               echo "✅ Port $port is available"
