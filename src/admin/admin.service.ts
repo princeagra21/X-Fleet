@@ -94,12 +94,12 @@ export class AdminService {
 
     }
 
-    async updateUser(userid: number, userdto: UpdateUserDto) {
+    async updateUser(userid: number, userdto: UpdateUserDto, adminid: number) {
         const { roleId, name, email, mobilePrefix, mobileNumber, username, password, companyName, address, countryCode, stateCode, city, pincode } = userdto;
         const userexists = await this.primaryDb.user.findFirst({
             where: {
                 OR: [
-                    { uid: userid }
+                    { uid: userid, parentUserId: adminid }
                 ]
             }
         });

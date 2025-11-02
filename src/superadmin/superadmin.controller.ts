@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, HttpCode, HttpStatus, Param, ParseIntPipe, Delete, Patch, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, Param, ParseIntPipe, Delete, Patch, Req, UseGuards } from '@nestjs/common';
 import { SuperadminService } from './superadmin.service';
 import { CreateAdminDto } from './dto/admin.dto';
 import { AdminPasswordUpdateDto } from './dto/adminpasswordupdate.dto';
@@ -8,19 +8,25 @@ import { UpdateSoftwareConfigDto } from './dto/softwareconfig.dto';
 import { SmtpSettingDto } from './dto/smtp.dto';
 import { CompanyDto } from './dto/company.dto';
 import type { FastifyRequest } from 'fastify';
+import { AuthGuard } from 'src/common/guards/auth.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { HeaderId } from 'src/common/decorators/header-id.decorator';
 
 @Controller('superadmin')
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('SUPERADMIN')
 export class SuperadminController {
     constructor(private readonly superadminService: SuperadminService) { }
 
     @Post('createadmin')
-    async createAdmin(@Body() Admindto: CreateAdminDto): Promise<any> {
-        return this.superadminService.createAdmin(Admindto);
+    async createAdmin(@Body() Admindto: CreateAdminDto, @HeaderId() headerId: number): Promise<any> {
+             return this.superadminService.createAdmin(Admindto , headerId);
     }
 
     @Get('adminlist')
-    async getAdminList(): Promise<any> {
-        return this.superadminService.getAdminList();
+    async getAdminList(@HeaderId() headerId: number): Promise<any> {
+        return this.superadminService.getAdminList(headerId);
     }
 
     @Get('admin/:id')
@@ -59,13 +65,13 @@ export class SuperadminController {
     }
 
     @Patch('softwareconfig')
-    async updateConfig(@Body() SoftwareConfigDto: UpdateSoftwareConfigDto) {
-        return this.superadminService.UpdateConfig(SoftwareConfigDto);
+    async updateConfig(@Body() SoftwareConfigDto: UpdateSoftwareConfigDto, @HeaderId() headerId: number) {
+        return this.superadminService.UpdateConfig(SoftwareConfigDto, headerId);
     }
 
     @Get('softwareconfig')
-    async getConfig() {
-        return this.superadminService.GetConfig();
+    async getConfig(@HeaderId() headerId: number) {
+        return this.superadminService.GetConfig(headerId);
     }
 
     @Get('smtpconfig/:id')

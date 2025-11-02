@@ -25,9 +25,9 @@ function stripUndefined<T extends AnyObj>(obj: T): Partial<T> {
 export class SuperadminService {
     constructor(private readonly primaryDb: PrimaryDatabaseService) { }
 
-    private readonly Super_Admin_Id = 1; // Assuming the Super Admin has a fixed user ID of 1
+   // private readonly Super_Admin_Id = 1; // Assuming the Super Admin has a fixed user ID of 1
 
-    async createAdmin(AdminDto: CreateAdminDto): Promise<any> {
+    async createAdmin(AdminDto: CreateAdminDto, headerId: number): Promise<any> {
         const { name, email, mobilePrefix, mobileNumber, username, password, companyName, address, country, state, city, pincode, credits } = AdminDto;
         const existingAdmin = await this.primaryDb.user.findFirst({
             where: {
@@ -73,7 +73,7 @@ export class SuperadminService {
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 roleId: 1,
-                parentUserId: this.Super_Admin_Id,
+                parentUserId: headerId,
                 addressId: Currentaddress.id,
 
             }
@@ -119,11 +119,11 @@ export class SuperadminService {
     }
 
 
-    getAdminList(): Promise<any> {
+    getAdminList(headerId: number): Promise<any> {
         return this.primaryDb.user.findMany({
             where: {
                 loginType: 'ADMIN',
-                parentUserId: this.Super_Admin_Id,
+                parentUserId: headerId,
             },
             select: {
                 uid: true,
@@ -365,12 +365,12 @@ export class SuperadminService {
         return { message: 'Admin deleted successfully' };
     }
 
-    async UpdateConfig(SoftwareConfigDto: any) {
-        await this.upsertDefaults();
+    async UpdateConfig(SoftwareConfigDto: any, headerId: number) {
+        await this.upsertDefaults(headerId);
 
         const data = stripUndefined(SoftwareConfigDto);
         if (Object.keys(data).length === 0) {
-            return this.primaryDb.softwareConfig.findUnique({ where: { id: this.Super_Admin_Id } });
+            return this.primaryDb.softwareConfig.findUnique({ where: { id: headerId } });
         }
 
         // Convert string inputs to proper types expected by the database
@@ -399,17 +399,17 @@ export class SuperadminService {
         if (Object.keys(normalized).length === 0) return { message: 'Nothing to update' };
 
         return this.primaryDb.softwareConfig.update({
-            where: { id: this.Super_Admin_Id },
+            where: { id: headerId },
             data: normalized,
         });
     }
 
-    private upsertDefaults() {
+    private upsertDefaults(headerId: number) {
         return this.primaryDb.softwareConfig.upsert({
-            where: { id: this.Super_Admin_Id },
+            where: { id: headerId },
             update: {}, // no-op if exists
             create: {
-                id: this.Super_Admin_Id,
+                id: headerId,
                 geocodingPrecision: 'TWO_DIGIT',
                 backupDays: 90,
                 currencyCode: 'USD',
@@ -421,9 +421,9 @@ export class SuperadminService {
         });
     }
 
-    async GetConfig() {
-        await this.upsertDefaults();
-        return this.primaryDb.softwareConfig.findUnique({ where: { id: this.Super_Admin_Id } });
+    async GetConfig(headerId: number) {
+        await this.upsertDefaults(headerId);
+        return this.primaryDb.softwareConfig.findUnique({ where: { id: headerId } });
     }
 
     async getSmtpConfig(userId: number) {

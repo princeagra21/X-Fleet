@@ -6,34 +6,9 @@
     "auditLog": "winston_logs\\.347218913d5406b774dad95a657c4cdbdfa783eb-audit.json",
     "files": [
         {
-            "date": 1758265027047,
-            "name": "winston_logs\\application-2025-09-19.log",
-            "hash": "f2b16c8ef52761fa61659f5f4391fa3bbed479b860125ae7f5b149a495d23d0e"
-        },
-        {
-            "date": 1758343908681,
-            "name": "winston_logs\\application-2025-09-20.log",
-            "hash": "c962dccb1ef1149602beadaf0d1d4c4b9f9b3b7f32083f1fbf12e325bb140d79"
-        },
-        {
-            "date": 1758393840668,
-            "name": "winston_logs\\application-2025-09-21.log",
-            "hash": "5fd0fe6ebeefd01908ac7a770c81c8534364840a76c59b2d2cb4d64f8e203c7d"
-        },
-        {
-            "date": 1758479409217,
-            "name": "winston_logs\\application-2025-09-22.log",
-            "hash": "88050a5508b4b246cf2d4da1100e978ef99c7b6bcb5de033e6eeb1f41122e5f3"
-        },
-        {
-            "date": 1758565837527,
-            "name": "winston_logs\\application-2025-09-23.log",
-            "hash": "1dc61f5a4556492d1b45985dd71981d3695d496a849c8a5082307984057ec10e"
-        },
-        {
-            "date": 1760278064273,
-            "name": "winston_logs\\application-2025-10-12.log",
-            "hash": "27f6609fe51d4add053c060ac0c931edd57c2196d5b6f1e0843070865433fa22"
+            "date": 1762069404505,
+            "name": "winston_logs\\application-2025-11-02.log",
+            "hash": "d604b549ed295fbc79c064e1ee1fff8afb5d6dd18790ae91e3376a53efe75a1c"
         }
     ],
     "hashType": "sha256"

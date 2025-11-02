@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, ParseIntPipe, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, ParseIntPipe, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateUserDto } from './dto/createuser.dto';
 import { UpdateUserDto } from './dto/updateuser.dto';
@@ -11,182 +11,188 @@ import { UpdateDriverDto } from './dto/updatedriver.dto';
 import { UpdateCompanyDto } from './dto/updatecompany.dto';
 import { UpdateSmtpConfigDto } from './dto/updatesmtpconfig.dto';
 import type { FastifyRequest } from 'fastify';
+import { AuthGuard } from 'src/common/guards/auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { HeaderId } from 'src/common/decorators/header-id.decorator';
 
 
 @Controller('admin')
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class AdminController {
   constructor(private readonly adminService: AdminService) { }
 
-  private readonly ADMIN_ID = 2;
+ // private readonly ADMIN_ID = 2;
 
   @Get('users')
-  async getUsers(): Promise<any> {
-    return this.adminService.getUsers(this.ADMIN_ID);
+  async getUsers(@HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getUsers(headerId);
   }
 
   @Post('users')
-  async createUser(@Body() CreateUserDto: CreateUserDto): Promise<any> {
-    return this.adminService.createUser(this.ADMIN_ID, CreateUserDto);
+  async createUser(@Body() CreateUserDto: CreateUserDto , @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.createUser(headerId, CreateUserDto);
   }
 
   @Get('users/:id')
-  async getUserById(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.getUserById(id, this.ADMIN_ID);
+  async getUserById(@Param('id', ParseIntPipe) id: number, @HeaderId() headerId: number) {
+    return this.adminService.getUserById(id, headerId);
   }
 
   @Patch('users/:id')
-  async updateUser(@Param('id', ParseIntPipe) id: number, @Body() UpdateUserDto: UpdateUserDto): Promise<any> {
-    return this.adminService.updateUser(id, UpdateUserDto);
+  async updateUser(@Param('id', ParseIntPipe) id: number, @Body() UpdateUserDto: UpdateUserDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.updateUser(id, UpdateUserDto, headerId);
 
   }
 
   @Post('updateuserpassword/:id')
-  async updatePassword(@Param('id', ParseIntPipe) id: number, @Body() body: { newPassword: string }): Promise<any> {
+  async updatePassword(@Param('id', ParseIntPipe) id: number, @Body() body: { newPassword: string }, @HeaderId() headerId: number): Promise<any> {
     const { newPassword } = body;
-    return this.adminService.updateuserPassword(id, this.ADMIN_ID, newPassword);
+    return this.adminService.updateuserPassword(id, headerId, newPassword);
   }
 
   @Post('device')
-  async createDevice(@Body() CreateDeviceDto: CreateDeviceDto): Promise<any> {
-    return this.adminService.createDevice(this.ADMIN_ID, CreateDeviceDto);
+  async createDevice(@Body() CreateDeviceDto: CreateDeviceDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.createDevice(headerId, CreateDeviceDto);
   }
 
   @Patch('device/:id')
-  async updateDevice(@Param('id', ParseIntPipe) id: number, @Body() UpdateDeviceDto: CreateDeviceDto): Promise<any> {
-    return this.adminService.updateDevice(id, this.ADMIN_ID, UpdateDeviceDto);
+  async updateDevice(@Param('id', ParseIntPipe) id: number, @Body() UpdateDeviceDto: CreateDeviceDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.updateDevice(id, headerId, UpdateDeviceDto);
   }
 
   @Get('device/:id')
-  async getDeviceById(@Param('id', ParseIntPipe) id: number): Promise<any> {
-    return this.adminService.getDeviceById(id, this.ADMIN_ID);
+  async getDeviceById(@Param('id', ParseIntPipe) id: number, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getDeviceById(id, headerId);
   }
 
   @Get('devices')
-  async getDevices(): Promise<any> {
-    return this.adminService.getDevices(this.ADMIN_ID);
+  async getDevices(@HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getDevices(headerId);
   }
 
   @Get('simcard')
-  async getSimCards(): Promise<any> {
-    return this.adminService.getSimCards(this.ADMIN_ID);
+  async getSimCards(@HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getSimCards(headerId);
   }
 
   @Post('simcard')
-  async createSimCard(@Body() CreateSimCardDto: SimCardDto): Promise<any> {
-    return this.adminService.createSimCard(this.ADMIN_ID, CreateSimCardDto);
+  async createSimCard(@Body() CreateSimCardDto: SimCardDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.createSimCard(headerId, CreateSimCardDto);
   }
 
   @Get('simcard/:id')
-  async getSimCardById(@Param('id', ParseIntPipe) id: number): Promise<any> {
-    return this.adminService.getSimCardById(id, this.ADMIN_ID);
+  async getSimCardById(@Param('id', ParseIntPipe) id: number, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getSimCardById(id, headerId);
   }
 
   @Patch('simcard/:id')
-  async updateSimCard(@Param('id', ParseIntPipe) id: number, @Body() UpdateSimCardDto: SimCardDto): Promise<any> {
-    return this.adminService.updateSimCard(id, this.ADMIN_ID, UpdateSimCardDto);
+  async updateSimCard(@Param('id', ParseIntPipe) id: number, @Body() UpdateSimCardDto: SimCardDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.updateSimCard(id, headerId, UpdateSimCardDto);
   }
 
   @Get('vehicles')
-  async getVehicles(): Promise<any> {
-    return this.adminService.getVehicles(this.ADMIN_ID);
+  async getVehicles(@HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getVehicles(headerId);
   }
 
   @Post('vehicles')
-  async createVehicle(@Body() CreateVehicleDto: CreateVehicleDto): Promise<any> {
-    return this.adminService.createVehicle(this.ADMIN_ID, CreateVehicleDto);
+  async createVehicle(@Body() CreateVehicleDto: CreateVehicleDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.createVehicle(headerId, CreateVehicleDto);
   }
 
   @Patch('vehicles/:id')
-  async updateVehicle(@Param('id', ParseIntPipe) id: number, @Body() UpdateVehicleDto: UpdateVehicleDto): Promise<any> {
-    return this.adminService.updateVehicle(id, this.ADMIN_ID, UpdateVehicleDto);
+  async updateVehicle(@Param('id', ParseIntPipe) id: number, @Body() UpdateVehicleDto: UpdateVehicleDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.updateVehicle(id, headerId, UpdateVehicleDto);
   }
 
   @Get('vehicles/:id')
-  async getVehicleById(@Param('id', ParseIntPipe) id: number): Promise<any> {
-    return this.adminService.getVehicleById(id, this.ADMIN_ID);
+  async getVehicleById(@Param('id', ParseIntPipe) id: number, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getVehicleById(id, headerId);
   }
 
   @Post('drivers')
-  async createDriver(@Body() CreateDriverDto: CreateDriverDto): Promise<any> {
-    return this.adminService.createDriver(this.ADMIN_ID, CreateDriverDto);
+  async createDriver(@Body() CreateDriverDto: CreateDriverDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.createDriver(headerId, CreateDriverDto);
   }
 
   @Get('drivers')
-  async getDrivers(): Promise<any> {
-    return this.adminService.getDrivers(this.ADMIN_ID);
+  async getDrivers(@HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getDrivers(headerId);
   }
   @Get('drivers/:id')
-  async getDriverById(@Param('id', ParseIntPipe) id: number): Promise<any> {
-    return this.adminService.getDriverById(id, this.ADMIN_ID);
+  async getDriverById(@Param('id', ParseIntPipe) id: number, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getDriverById(id, headerId);
   }
 
   @Patch('drivers/:id')
-  async updateDriver(@Param('id', ParseIntPipe) id: number, @Body() UpdateDriverDto: UpdateDriverDto): Promise<any> {
-    return this.adminService.updateDriver(id, this.ADMIN_ID, UpdateDriverDto);
+  async updateDriver(@Param('id', ParseIntPipe) id: number, @Body() UpdateDriverDto: UpdateDriverDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.updateDriver(id, headerId, UpdateDriverDto);
   }
 
   @Delete('drivers/:id')
-  async deleteDriver(@Param('id', ParseIntPipe) id: number): Promise<any> {
-    return this.adminService.deleteDriver(id, this.ADMIN_ID);
+  async deleteDriver(@Param('id', ParseIntPipe) id: number, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.deleteDriver(id, headerId);
   }
 
   @Post('userdriverassign/:userId/:driverId')
   async assignDriverToUser(@Param('userId', ParseIntPipe) userId: number, @Param('driverId', ParseIntPipe) driverId: number,
-    @Body() body: { action: string }): Promise<any> {
-    return this.adminService.assignDriverToUser( driverId, userId, this.ADMIN_ID, body.action);
+    @Body() body: { action: string } , @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.assignDriverToUser( driverId, userId, headerId, body.action);
   }
 
   @Post('updatedriverpassword/:id')
-  async updateDriverPassword(@Param('id', ParseIntPipe) id: number, @Body() body: { newPassword: string }): Promise<any> {
+  async updateDriverPassword(@Param('id', ParseIntPipe) id: number, @Body() body: { newPassword: string }, @HeaderId() headerId: number): Promise<any> {
     const { newPassword } = body;
-    return this.adminService.updateDriverPassword(id, this.ADMIN_ID, newPassword);
+    return this.adminService.updateDriverPassword(id, headerId, newPassword);
   }
 
   @Post('uservehicleassign/:userId/:vehicleId')
-  async assignVehicleToUser(@Param('userId', ParseIntPipe) userId: number, @Param('vehicleId', ParseIntPipe) vehicleId: number, @Body() body: { action: string }): Promise<any> {
-    return this.adminService.assignVehicleToUser(vehicleId, userId, this.ADMIN_ID, body.action);
+  async assignVehicleToUser(@Param('userId', ParseIntPipe) userId: number, @Param('vehicleId', ParseIntPipe) vehicleId: number, @Body() body: { action: string }, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.assignVehicleToUser(vehicleId, userId, headerId, body.action);
   }
 
   @Get('uservehiclelist/:userId')
-  async getUserVehicles(@Param('userId', ParseIntPipe) userId: number): Promise<any> {
-    return this.adminService.getUserVehicles(userId, this.ADMIN_ID);
+  async getUserVehicles(@Param('userId', ParseIntPipe) userId: number, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getUserVehicles(userId, headerId);
   }
 
   @Get('vehicleuserlist/:vehicleId')
-  async getVehicleUsers(@Param('vehicleId', ParseIntPipe) vehicleId: number): Promise<any> {
-    return this.adminService.getVehicleUsers(vehicleId, this.ADMIN_ID);
+  async getVehicleUsers(@Param('vehicleId', ParseIntPipe) vehicleId: number, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getVehicleUsers(vehicleId, headerId);
   }
 
   @Patch('companyinfo/:id')
-  async updateCompanyInfo(@Param('id', ParseIntPipe) id: number, @Body() updateCompanydto: UpdateCompanyDto): Promise<any> {
-    return this.adminService.updateCompanyInfo(id, this.ADMIN_ID, updateCompanydto);
+  async updateCompanyInfo(@Param('id', ParseIntPipe) id: number, @Body() updateCompanydto: UpdateCompanyDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.updateCompanyInfo(id, headerId, updateCompanydto);
   }
 
   @Get('smtpconfig')
-  async getSmtpConfig(): Promise<any> {
-    return this.adminService.getSmtpConfig(this.ADMIN_ID);
+  async getSmtpConfig(@HeaderId() headerId: number): Promise<any> {
+    return this.adminService.getSmtpConfig(headerId);
   }
 
   @Post('smtpconfig')
-  async updateSmtpConfig(@Body() smtpConfig: UpdateSmtpConfigDto): Promise<any> {
-    return this.adminService.updateSmtpConfig(this.ADMIN_ID, smtpConfig);
+  async updateSmtpConfig(@Body() smtpConfig: UpdateSmtpConfigDto, @HeaderId() headerId: number): Promise<any> {
+    return this.adminService.updateSmtpConfig(headerId, smtpConfig);
   }
 
   @Post('updatepassword')
-  async updatePasswordAdmin(@Body() body: { currentPassword: string, newPassword: string }): Promise<any> {
+  async updatePasswordAdmin(@Body() body: { currentPassword: string, newPassword: string }, @HeaderId() headerId: number): Promise<any> {
     const { currentPassword, newPassword } = body;
-    return this.adminService.updateAdminPassword(this.ADMIN_ID, currentPassword, newPassword);
+    return this.adminService.updateAdminPassword(headerId, currentPassword, newPassword);
   }
 
    @Post('upload')
-    async uploadFile(@Req() req: FastifyRequest): Promise<any> {
+    async uploadFile(@Req() req: FastifyRequest, @HeaderId() headerId: number): Promise<any> {
         console.log('Admin upload endpoint called');
         console.log('Request headers:', req.headers);
         console.log('Content-Type:', req.headers['content-type']);
         console.log('Is multipart:', req.isMultipart?.());
         
         try {
-            const result = await this.adminService.uploadFile(req, this.ADMIN_ID);
+            const result = await this.adminService.uploadFile(req, headerId);
             console.log('Admin upload result:', result);
             return result;
         } catch (error) {
