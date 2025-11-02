@@ -1,136 +1,41 @@
-# X-Fleet NestJS Application
+Commands 
 
-A production-ready NestJS application with multi-database PostgreSQL support, deployed using Docker.
+## Quick commands (Windows PowerShell)
 
-## 🚀 Production Deployment
+### Prisma: generate clients
 
-The application is successfully deployed and running on AWS EC2:
+npx prisma migrate dev --name init --schema=prisma/primary.prisma
 
-- **Application URL**: `http://ec2-13-204-91-22.ap-south-1.compute.amazonaws.com:3001`
-- **Alternative URL**: `http://ec2-13-204-91-22.ap-south-1.compute.amazonaws.com:80`
-- **Database Host**: `ec2-13-204-91-22.ap-south-1.compute.amazonaws.com:5432`
+npx prisma migrate dev --name init --schema=prisma/logs.prisma
 
-### Docker Image
+npx prisma migrate dev --name init --schema=prisma/address.prisma
 
-- **Registry**: Docker Hub
-- **Image**: `princeagra21/x-fleet:latest`
 
-## 🗄️ Database Setup
+### Run the app
 
-The application uses three PostgreSQL databases:
+```powershell
+# Development (watch)
+npm run start:dev
 
-1. **FleetStack_db** - Primary database
-2. **FleetStack_logs** - Logs database
-3. **FleetStack_Address** - Address database
+# Debug mode
+npm run start:debug
 
-**Database Credentials:**
-- Username: `postgres`
-- Password: `Stack@321`
-- Port: `5432`
-
-## 🛠️ Local Development
-
-### Prerequisites
-
-- Node.js 20+
-- Docker & Docker Compose
-- PostgreSQL (or use Docker)
-
-### Getting Started
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd X-Fleet
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your database credentials
-   ```
-
-4. **Generate Prisma clients**
-   ```bash
-   npx prisma generate
-   ```
-
-5. **Build the application**
-   ```bash
-   npm run build
-   ```
-
-6. **Run with Docker Compose**
-   ```bash
-   docker-compose up -d
-   ```
-
-## 📋 Available Scripts
-
-- `npm run build` - Build the application
-- `npm run start` - Start the application
-- `npm run start:dev` - Start in development mode
-- `npm run start:prod` - Start in production mode
-- `npm run lint` - Run ESLint
-- `npm run test` - Run tests
-
-## 🐳 Docker Deployment
-
-### Build Image
-```bash
-docker build -t x-fleet:latest .
+# Production build + run
+npm run build; node dist/main
 ```
 
-### Deploy with Docker Compose
-```bash
-docker-compose up -d
+### Lint and tests
+
+```powershell
+# Lint (auto-fix)
+npm run lint
+
+# E2E tests
+npm run test:e2e
 ```
 
-## 🏗️ Architecture
+### Notes
+- Ensure environment variables (e.g., `PRIMARY_DATABASE_URL`) are set before running migrate/seed.
+- The Prisma client is generated to `generated/prisma-primary` and seed files import from there.
+Commands 
 
-- **Framework**: NestJS
-- **Database**: PostgreSQL (Multi-database setup)
-- **ORM**: Prisma
-- **Containerization**: Docker
-- **Deployment**: AWS EC2
-
-## 📝 Environment Variables
-
-See `.env.example` for all required environment variables.
-
-## 🔒 Security Features
-
-- Helmet for security headers
-- CORS configuration
-- Input validation with class-validator
-- JWT authentication support
-- Non-root Docker user
-- Production-ready security headers
-
-## 📊 Health Check
-
-The application includes health check endpoints for monitoring:
-
-- Application health check available at container level
-- Database connectivity verification
-- Proper Docker health checks configured
-
-## 🚀 Production Features
-
-- Multi-stage Docker build for optimized images
-- Production-ready logging with Winston
-- Error handling and validation
-- Database connection pooling
-- Container restart policies
-- Persistent data volumes
-- External database access
-- Load balancer ready (ports 80 & 3001)
-
----
-
-**Status**: ✅ Successfully deployed and running in production

@@ -1,9 +1,15 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '../../generated/prisma-logs';
+import path from 'node:path';
+import type { PrismaClient as LogsPrismaClient } from '../../generated/prisma-logs';
+
+// Resolve the generated Prisma client at runtime from project root to avoid dist-relative path issues
+const { PrismaClient: PrismaBase }: { PrismaClient: typeof LogsPrismaClient } = require(
+  path.join(process.cwd(), 'generated', 'prisma-logs')
+);
 
 @Injectable()
-export class LogsDatabaseService extends PrismaClient implements OnModuleInit {
+export class LogsDatabaseService extends PrismaBase implements OnModuleInit {
   constructor(private configService: ConfigService) {
     const databaseUrl = configService.get('database.logs.url');
     super({
