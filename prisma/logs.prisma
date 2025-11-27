@@ -11,61 +11,49 @@ datasource db {
   url      = env("LOGS_DATABASE_URL")
 }
 
-model SystemLog {
-  id        Int      @id @default(autoincrement())
-  level     LogLevel
-  message   String
-  module    String?
-  userId    Int?     @map("user_id")
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  metadata  Json?
-  createdAt DateTime @default(now()) @map("created_at")
+model GPSLog {
   
-  @@map("system_logs")
-}
+  id Int @id @default(autoincrement()) @map("ID")
 
-model AuditLog {
-  id         Int        @id @default(autoincrement())
-  action     String
-  tableName  String     @map("table_name")
-  recordId   String     @map("record_id")
-  oldValues  Json?      @map("old_values")
-  newValues  Json?      @map("new_values")
-  userId     Int?       @map("user_id")
-  userName   String?    @map("user_name")
-  timestamp  DateTime   @default(now())
-  
-  @@map("audit_logs")
-}
+  deviceId String @map("Device_ID")
+  time DateTime @map("Time")
 
-model ErrorLog {
-  id         Int      @id @default(autoincrement())
-  errorCode  String?  @map("error_code")
-  message    String
-  stack      String?
-  url        String?
-  method     String?
-  userId     Int?     @map("user_id")
-  severity   ErrorSeverity @default(MEDIUM)
-  resolved   Boolean  @default(false)
-  createdAt  DateTime @default(now()) @map("created_at")
-  resolvedAt DateTime? @map("resolved_at")
-  
-  @@map("error_logs")
-}
+  serverTime DateTime @map("ServerTime")
 
-enum LogLevel {
-  DEBUG
-  INFO
-  WARN
-  ERROR
-  FATAL
-}
+ 
+  lat Float @map("Lat")
+  lon Float @map("Lon")
 
-enum ErrorSeverity {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
+
+  speed Float? @map("Speed")
+
+
+  course Float? @map("Course")
+
+
+  sats Int? @map("Sat")
+
+
+  ignition Boolean? @map("Ignition")
+
+
+  motion Boolean? @map("Motion")
+
+
+  distanceM Float? @map("Distance")
+
+
+  odometer Float? @map("Odometer")
+
+ 
+  engineHour Float? @map("EngineHour")
+
+
+  attributes Json @map("Attribute")
+
+  @@map("GPS_Logs")
+
+
+  @@index([deviceId, time])
+  @@index([deviceId, serverTime])
 }

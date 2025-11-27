@@ -3,619 +3,17 @@ name: 🚀 X-Fleet CI/CD Pipeline
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-env:
-  IMAGE_NAME: x-fleet
-  CONTAINER_NAME: x-fleet-app
-  DB_CONTAINER_NAME: x-fleet-postgres
-  NETWORK_NAME: x-fleet-network
 
 jobs:
-  # Build and Test Job
-  build:
-    name: 🏗️ Build & Test
-    runs-on: ubuntu-latest
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
-    
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4
-
-      - name: 🏷️ Extract Metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: 🐳 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: 🔐 Login to Docker Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: 🔨 Build and Push Docker Image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-
-      - name: 🧪 Test Docker Image
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "Testing built image..."
-          docker run --rm --entrypoint="" ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest node --version
-          docker run --rm --entrypoint="" ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest ls -la /app/dist
-
-  # Deploy Job (only on main branch)
   deploy:
     name: 🚀 Deploy to Production
-    needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
-      - name: 📝 Create Deployment Files
-        run: |
-          # Create deployment directory
-          mkdir -p deploy
-          
-          # Create docker-compose.prod.yml for deployment using echo to avoid heredoc issues
-          echo "services:" > deploy/docker-compose.prod.yml
-          echo "  x-fleet-app:" >> deploy/docker-compose.prod.yml
-          echo "    image: ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest" >> deploy/docker-compose.prod.yml
-          echo "    container_name: x-fleet-app" >> deploy/docker-compose.prod.yml
-          echo "    restart: unless-stopped" >> deploy/docker-compose.prod.yml
-          echo "    ports:" >> deploy/docker-compose.prod.yml
-          echo "      - \"3001:3001\"" >> deploy/docker-compose.prod.yml
-          echo "    env_file:" >> deploy/docker-compose.prod.yml
-          echo "      - .env" >> deploy/docker-compose.prod.yml
-          echo "    depends_on:" >> deploy/docker-compose.prod.yml
-          echo "      - x-fleet-postgres" >> deploy/docker-compose.prod.yml
-          echo "    networks:" >> deploy/docker-compose.prod.yml
-          echo "      - xfleet" >> deploy/docker-compose.prod.yml
-          echo "    healthcheck:" >> deploy/docker-compose.prod.yml
-          echo "      test: [\"CMD\", \"sh\", \"-c\", \"node --version || exit 1\"]" >> deploy/docker-compose.prod.yml
-          echo "      interval: 30s" >> deploy/docker-compose.prod.yml
-          echo "      timeout: 10s" >> deploy/docker-compose.prod.yml
-          echo "      retries: 3" >> deploy/docker-compose.prod.yml
-          echo "      start_period: 30s" >> deploy/docker-compose.prod.yml
-          echo "" >> deploy/docker-compose.prod.yml
-          echo "  x-fleet-postgres:" >> deploy/docker-compose.prod.yml
-          echo "    image: postgres:15-alpine" >> deploy/docker-compose.prod.yml
-          echo "    container_name: x-fleet-postgres" >> deploy/docker-compose.prod.yml
-          echo "    restart: unless-stopped" >> deploy/docker-compose.prod.yml
-          echo "    ports:" >> deploy/docker-compose.prod.yml
-          echo "      - \"5432:5432\"" >> deploy/docker-compose.prod.yml
-          echo "    env_file:" >> deploy/docker-compose.prod.yml
-          echo "      - .env" >> deploy/docker-compose.prod.yml
-          echo "    volumes:" >> deploy/docker-compose.prod.yml
-          echo "      - postgres_data:/var/lib/postgresql/data" >> deploy/docker-compose.prod.yml
-          echo "      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql" >> deploy/docker-compose.prod.yml
-          echo "    networks:" >> deploy/docker-compose.prod.yml
-          echo "      - xfleet" >> deploy/docker-compose.prod.yml
-          echo "    healthcheck:" >> deploy/docker-compose.prod.yml
-          echo "      test: [\"CMD-SHELL\", \"pg_isready -U \$\$POSTGRES_USER\"]" >> deploy/docker-compose.prod.yml
-          echo "      interval: 10s" >> deploy/docker-compose.prod.yml
-          echo "      timeout: 5s" >> deploy/docker-compose.prod.yml
-          echo "      retries: 5" >> deploy/docker-compose.prod.yml
-          echo "" >> deploy/docker-compose.prod.yml
-          echo "networks:" >> deploy/docker-compose.prod.yml
-          echo "  xfleet:" >> deploy/docker-compose.prod.yml
-          echo "    driver: bridge" >> deploy/docker-compose.prod.yml
-          echo "" >> deploy/docker-compose.prod.yml
-          echo "volumes:" >> deploy/docker-compose.prod.yml
-          echo "  postgres_data:" >> deploy/docker-compose.prod.yml
-          
-          # Create database initialization script
-          cat > deploy/init-db.sql << 'EOF'
-          -- Create multiple databases for the application
-          CREATE DATABASE "FleetStack_db";
-          CREATE DATABASE "FleetStack_logs";  
-          CREATE DATABASE "FleetStack_Address";
-
-          -- Grant privileges
-          GRANT ALL PRIVILEGES ON DATABASE "FleetStack_db" TO postgres;
-          GRANT ALL PRIVILEGES ON DATABASE "FleetStack_logs" TO postgres;
-          GRANT ALL PRIVILEGES ON DATABASE "FleetStack_Address" TO postgres;
-          EOF
-          
-          # Create deployment script
-          cat > deploy/deploy.sh << 'EOF'
-          #!/bin/bash
-          set -e
-
-          echo "🚀 Starting X-Fleet deployment..."
-
-          # Variables
-          COMPOSE_FILE="docker-compose.prod.yml"
-          APP_CONTAINER="x-fleet-app"
-          DB_CONTAINER="x-fleet-postgres"
-          BACKUP_CONTAINER="x-fleet-app-backup"
-
-          # Set docker compose command based on availability
-          if command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1; then
-            DOCKER_COMPOSE_CMD="docker compose"
-          elif command -v docker-compose &> /dev/null; then
-            DOCKER_COMPOSE_CMD="docker-compose"
-          else
-            echo "❌ Neither 'docker compose' nor 'docker-compose' found"
-            exit 1
-          fi
-          
-          echo "📋 Using: $DOCKER_COMPOSE_CMD"
-          
-          # Debug: Show compose file content
-          echo "🔍 Debugging: Docker Compose file content:"
-          cat $COMPOSE_FILE
-          echo "=== End of compose file ==="
-          
-          # Validate compose file
-          echo "🔍 Validating Docker Compose file..."
-          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE config
-          
-          # Function to check container health
-          check_health() {
-            local container_name=$1
-            local max_attempts=30
-            local attempt=1
-            
-            echo "⏳ Checking health of $container_name..."
-            
-            while [ $attempt -le $max_attempts ]; do
-              if [ "$(docker inspect --format='{{.State.Health.Status}}' $container_name 2>/dev/null)" = "healthy" ]; then
-                echo "✅ $container_name is healthy"
-                return 0
-              fi
-              
-              echo "🔄 Attempt $attempt/$max_attempts: Waiting for $container_name to be healthy..."
-              sleep 10
-              ((attempt++))
-            done
-            
-            echo "❌ $container_name failed health check"
-            return 1
-          }
-
-          # Function to rollback
-          rollback() {
-            echo "🔄 Rolling back to previous version..."
-            
-            if docker ps -a | grep -q $BACKUP_CONTAINER; then
-              echo "📦 Stopping current container..."
-              docker stop $APP_CONTAINER || true
-              docker rm $APP_CONTAINER || true
-              
-              echo "🔄 Starting backup container..."
-              docker start $BACKUP_CONTAINER
-              docker rename $BACKUP_CONTAINER $APP_CONTAINER
-              
-              echo "✅ Rollback completed"
-            else
-              echo "❌ No backup container found for rollback"
-              exit 1
-            fi
-          }
-
-          # Stop and remove any existing containers
-          echo "🧹 Cleaning up existing containers..."
-          
-          # Force stop and remove any containers using our ports
-          echo "🔍 Checking for processes using ports 3001 and 5432..."
-          
-          # Function to kill processes on a port
-          kill_port_processes() {
-            local port=$1
-            local max_attempts=5
-            local attempt=1
-            
-            echo "🔍 Attempting to free port $port..."
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "🔄 Attempt $attempt/$max_attempts to free port $port"
-              
-              # Kill all processes using the port with multiple methods
-              KILLED=false
-              
-              # Method 1: lsof
-              if command -v lsof >/dev/null 2>&1; then
-                PROCESSES=$(lsof -ti :$port 2>/dev/null || true)
-                if [ ! -z "$PROCESSES" ]; then
-                  echo "⚠️ Found processes using port $port (lsof): $PROCESSES"
-                  echo "$PROCESSES" | xargs -r kill -9 2>/dev/null || true
-                  KILLED=true
-                fi
-              fi
-              
-              # Method 2: netstat
-              if command -v netstat >/dev/null 2>&1; then
-                PROCESSES=$(netstat -tlnp 2>/dev/null | grep ":$port " | awk '{print $7}' | cut -d'/' -f1 | grep -E '^[0-9]+$' || true)
-                if [ ! -z "$PROCESSES" ]; then
-                  echo "⚠️ Found processes using port $port (netstat): $PROCESSES"
-                  echo "$PROCESSES" | xargs -r kill -9 2>/dev/null || true
-                  KILLED=true
-                fi
-              fi
-              
-              # Method 3: ss
-              if command -v ss >/dev/null 2>&1; then
-                PROCESSES=$(ss -tlnp 2>/dev/null | grep ":$port " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u || true)
-                if [ ! -z "$PROCESSES" ]; then
-                  echo "⚠️ Found processes using port $port (ss): $PROCESSES"
-                  echo "$PROCESSES" | xargs -r kill -9 2>/dev/null || true
-                  KILLED=true
-                fi
-              fi
-              
-              # Method 4: fuser (more aggressive)
-              if command -v fuser >/dev/null 2>&1; then
-                echo "🔫 Using fuser to kill processes on port $port"
-                fuser -k ${port}/tcp 2>/dev/null || true
-                KILLED=true
-              fi
-              
-              if [ "$KILLED" = true ]; then
-                echo "⏳ Waiting for processes to terminate..."
-                sleep 3
-              fi
-              
-              # Check if port is now free
-              if ! port_in_use $port; then
-                echo "✅ Port $port is now free"
-                return 0
-              fi
-              
-              ((attempt++))
-              
-              if [ $attempt -le $max_attempts ]; then
-                echo "⚠️ Port $port still in use, retrying..."
-                sleep 2
-              fi
-            done
-            
-            echo "❌ Failed to free port $port after $max_attempts attempts"
-            
-            # Show diagnostic information before giving up
-            echo "🔍 DIAGNOSTIC: What's using port $port?"
-            
-            if command -v lsof >/dev/null 2>&1; then
-              echo "lsof output:"
-              lsof -i :$port 2>&1 || echo "lsof found nothing on port $port"
-            fi
-            
-            if command -v netstat >/dev/null 2>&1; then
-              echo "netstat output:"
-              netstat -tlnp 2>/dev/null | grep ":$port " || echo "netstat found nothing on port $port"
-            fi
-            
-            if command -v ss >/dev/null 2>&1; then
-              echo "ss output:"
-              ss -tlnp 2>/dev/null | grep ":$port " || echo "ss found nothing on port $port"
-            fi
-            
-            if command -v fuser >/dev/null 2>&1; then
-              echo "fuser verbose output:"
-              fuser -v ${port}/tcp 2>&1 || echo "fuser found nothing on port $port"
-            fi
-            
-            echo "Docker containers with port mappings:"
-            docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}" 2>/dev/null | grep "$port" || echo "No Docker containers using port $port"
-            
-            return 1
-          }
-          
-          # Function to check if a port is in use
-          port_in_use() {
-            local port=$1
-            
-            # Try multiple methods to check if port is in use
-            if command -v lsof >/dev/null 2>&1 && lsof -ti :$port >/dev/null 2>&1; then
-              return 0  # Port is in use
-            fi
-            
-            if command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | grep -q ":$port "; then
-              return 0  # Port is in use
-            fi
-            
-            if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q ":$port "; then
-              return 0  # Port is in use
-            fi
-            
-            return 1  # Port is free
-          }
-          
-          # First attempt - kill processes using our ports
-          echo "🔴 Phase 1: Standard port cleanup"
-          PHASE1_SUCCESS=true
-          kill_port_processes 3001 || PHASE1_SUCCESS=false
-          kill_port_processes 5432 || PHASE1_SUCCESS=false
-          
-          if [ "$PHASE1_SUCCESS" = false ]; then
-            echo "⚠️ Phase 1 cleanup had issues, but continuing to Phase 2..."
-          fi
-          
-          # If ports are still in use or Phase 1 failed, try alternative approaches
-          if [ "$PHASE1_SUCCESS" = false ] || port_in_use 3001 || port_in_use 5432; then
-            echo "🔴 Phase 2: Alternative cleanup methods"
-            
-            # Try to restart Docker daemon as a last resort
-            echo "🔄 Restarting Docker daemon to clear port conflicts..."
-            sudo systemctl restart docker || sudo service docker restart || true
-            sleep 10
-            
-            # Try to use systemd to stop any potential services
-            echo "🛑 Attempting to stop any potential systemd services on the ports..."
-            sudo systemctl stop $(sudo systemctl list-units --type=service --state=running | grep -E '(3001|5432)' | awk '{print $1}' || true) 2>/dev/null || true
-            
-            # Check for Docker containers that might be holding the ports
-            echo "🔍 Checking for Docker containers using the ports..."
-            CONTAINERS_3001=$(docker ps -a --filter "publish=3001" --format "{{.ID}}" 2>/dev/null || true)
-            CONTAINERS_5432=$(docker ps -a --filter "publish=5432" --format "{{.ID}}" 2>/dev/null || true)
-            
-            if [ ! -z "$CONTAINERS_3001" ]; then
-              echo "🔴 Found containers using port 3001: $CONTAINERS_3001"
-              echo "$CONTAINERS_3001" | xargs -r docker rm -f
-            fi
-            
-            if [ ! -z "$CONTAINERS_5432" ]; then
-              echo "🔴 Found containers using port 5432: $CONTAINERS_5432"
-              echo "$CONTAINERS_5432" | xargs -r docker rm -f
-            fi
-            
-            # Nuclear option: try to use kill -9 on all Docker processes
-            echo "💥 Nuclear option: Force killing Docker processes"
-            sudo pkill -f "docker" 2>/dev/null || true
-            sleep 5
-            
-            # Restart Docker again
-            echo "🔄 Final Docker restart..."
-            sudo systemctl restart docker || sudo service docker restart || true
-            sleep 15
-            
-            # Wait for Docker to be ready
-            echo "⏳ Waiting for Docker to be ready..."
-            timeout 60 bash -c 'until docker ps >/dev/null 2>&1; do sleep 2; done' || echo "Warning: Docker might not be fully ready"
-          fi
-          
-          # Force stop and remove ALL containers with our names (including any orphaned ones)
-          echo "🧹 Force stopping and removing containers by name..."
-          docker stop $APP_CONTAINER $DB_CONTAINER 2>/dev/null || true
-          docker rm -f $APP_CONTAINER $DB_CONTAINER 2>/dev/null || true
-          docker rm -f $BACKUP_CONTAINER 2>/dev/null || true
-          
-          # Also remove any containers with similar names that might be running
-          echo "🧹 Removing any containers with x-fleet in the name..."
-          docker ps -a --filter "name=x-fleet" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
-          
-          # Remove any containers that might be using ports 3001 or 5432
-          echo "🧹 Removing containers using ports 3001 and 5432..."
-          for port in 3001 5432; do
-            CONTAINERS=$(docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}" | grep ":$port->" | awk '{print $1}' || true)
-            if [ ! -z "$CONTAINERS" ]; then
-              echo "Removing containers using port $port: $CONTAINERS"
-              echo "$CONTAINERS" | xargs -r docker rm -f 2>/dev/null || true
-            fi
-          done
-          
-          # Also clean up any containers that might be using our image
-          echo "🧹 Removing containers using our image..."
-          docker ps -a --filter "ancestor=${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest" -q | xargs -r docker rm -f
-          
-          # Stop and remove any compose stack
-          echo "🛑 Stopping any existing compose stack..."
-          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down --remove-orphans --volumes 2>/dev/null || true
-          
-          # Remove any existing networks and volumes 
-          echo "🧹 Cleaning up networks and volumes..."
-          docker network rm x-fleet-deployment_xfleet 2>/dev/null || true
-          docker volume rm x-fleet-deployment_postgres_data 2>/dev/null || true
-          
-          # Wait for ports to be fully released
-          echo "⏳ Waiting for ports to be released..."
-          sleep 5
-          
-          # Verify ports are now available with detailed debugging
-          echo "🔍 Final port availability check..."
-          for port in 3001 5432; do
-            if port_in_use $port; then
-              echo "❌ Port $port is still in use after cleanup!"
-              
-              # Show detailed information about what's using the port
-              echo "🔍 Comprehensive port $port diagnosis:"
-              
-              echo "=== System Information ==="
-              uname -a || true
-              echo "Docker version:"
-              docker --version 2>/dev/null || echo "Docker not available"
-              echo "Docker status:"
-              docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}\t{{.Status}}" 2>/dev/null || echo "Cannot list Docker containers"
-              
-              echo "=== Process Information ==="
-              if command -v lsof >/dev/null 2>&1; then
-                echo "--- lsof output for port $port ---"
-                lsof -i :$port 2>/dev/null || echo "No lsof results for port $port"
-                echo "--- lsof output for all listening ports ---"
-                lsof -i -P -n | grep LISTEN | grep -E ":(3001|5432)" || echo "No listening ports found"
-              fi
-              
-              if command -v netstat >/dev/null 2>&1; then
-                echo "--- netstat output for port $port ---"
-                netstat -tlnp 2>/dev/null | grep ":$port " || echo "No netstat results for port $port"
-                echo "--- netstat output for all listening ports ---"
-                netstat -tlnp 2>/dev/null | grep -E ":(3001|5432)" || echo "No listening ports found"
-              fi
-              
-              if command -v ss >/dev/null 2>&1; then
-                echo "--- ss output for port $port ---"
-                ss -tlnp 2>/dev/null | grep ":$port " || echo "No ss results for port $port"
-                echo "--- ss output for all listening ports ---"
-                ss -tlnp 2>/dev/null | grep -E ":(3001|5432)" || echo "No listening ports found"
-              fi
-              
-              if command -v fuser >/dev/null 2>&1; then
-                echo "--- fuser verbose output ---"
-                fuser -v ${port}/tcp 2>&1 || echo "No fuser results for port $port"
-              fi
-              
-              echo "=== Docker Specific Checks ==="
-              echo "Docker containers with port mappings:"
-              docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}" 2>/dev/null | grep -E "(3001|5432)" || echo "No containers found with port mappings"
-              
-              echo "Docker networks:"
-              docker network ls 2>/dev/null || echo "Cannot list Docker networks"
-              
-              echo "=== System Network Status ==="
-              echo "Active internet connections:"
-              netstat -tuln 2>/dev/null | head -20 || echo "Cannot show network connections"
-              
-              echo "🔫 Last resort: trying to kill any remaining processes on port $port"
-              
-              # Try one more aggressive cleanup
-              if command -v fuser >/dev/null 2>&1; then
-                fuser -k ${port}/tcp 2>/dev/null || true
-                sleep 3
-                if ! port_in_use $port; then
-                  echo "✅ Port $port freed after last resort cleanup"
-                  continue
-                fi
-              fi
-              
-              echo "❌ CRITICAL: Cannot proceed with deployment - port $port conflict persists!"
-              echo "🚑 You may need to manually investigate and kill processes on the server"
-              exit 1
-            else
-              echo "✅ Port $port is available"
-            fi
-          done
-          
-          # Pull latest images
-          echo "📥 Pulling latest images..."
-          docker pull ${{ secrets.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          docker pull postgres:15-alpine
-
-          # Start all containers with docker-compose
-          echo "🚀 Starting all containers..."
-          $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d
-          
-          # Wait for database to be healthy first
-          echo "⏳ Waiting for database to be ready..."
-          if ! check_health $DB_CONTAINER; then
-            echo "❌ Database health check failed"
-            rollback
-            exit 1
-          fi
-          
-          # Then wait for application to be healthy
-          echo "⏳ Waiting for application to be ready..."
-
-          # Check if deployment was successful
-          if check_health $APP_CONTAINER; then
-            echo "✅ Deployment successful!"
-            
-            # Remove backup container if deployment succeeded
-            if docker ps -a | grep -q $BACKUP_CONTAINER; then
-              echo "🧹 Removing backup container..."
-              docker rm $BACKUP_CONTAINER || true
-            fi
-            
-            # Clean up unused images
-            docker image prune -f
-            
-            echo "🎉 X-Fleet deployment completed successfully!"
-          else
-            echo "❌ Deployment failed!"
-            rollback
-            exit 1
-          fi
-          EOF
-
-          chmod +x deploy/deploy.sh
-          
-          # Debug: Show generated files
-          echo "=== Generated docker-compose.prod.yml ==="
-          cat deploy/docker-compose.prod.yml
-          echo "=== End of docker-compose.prod.yml ==="
-
-      - name: 📤 Deploy to EC2 Server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          timeout: 300s
-          command_timeout: 60s
-          script: |
-            # Create deployment directory
-            mkdir -p ~/x-fleet-deployment
-            cd ~/x-fleet-deployment
-            
-            # Install Docker if not present
-            if ! command -v docker &> /dev/null; then
-              echo "🐳 Installing Docker..."
-              curl -fsSL https://get.docker.com -o get-docker.sh
-              sudo sh get-docker.sh
-              sudo usermod -aG docker $USER
-              newgrp docker
-            fi
-            
-            # Install Docker Compose if not present
-            if ! docker compose version &> /dev/null && ! docker-compose version &> /dev/null; then
-              echo "🐙 Installing Docker Compose..."
-              sudo apt-get update
-              sudo apt-get install -y docker-compose-plugin
-              
-              # Fallback: install standalone docker-compose if plugin fails
-              if ! docker compose version &> /dev/null; then
-                echo "🔄 Installing standalone docker-compose..."
-                sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                sudo chmod +x /usr/local/bin/docker-compose
-              fi
-            else
-              echo "✅ Docker Compose already installed"
-              docker compose version 2>/dev/null || docker-compose version
-            fi
-            
-            # Login to Docker registry
-            echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
-            
-            echo "🚀 Starting deployment process..."
-
-      - name: 📁 Copy Deployment Files
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          source: "deploy/*"
-          target: "~/x-fleet-deployment/"
-          strip_components: 1
-
-      - name: 🚀 Execute Deployment
+      - name: 🚀 Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -624,71 +22,90 @@ jobs:
           port: 22
           timeout: 600s
           script: |
-            cd ~/x-fleet-deployment
+            set -e
             
-            # Check if .env file exists, create if not
-            if [ ! -f .env ]; then
-              echo "📝 Creating .env file from environment variables..."
-              cat > .env << 'EOF'
-            # Environment Configuration for FleetStack Backend
-            NODE_ENV=production
-            PORT=3001
-
-            # Database Configuration
-            POSTGRES_USER=postgres
-            POSTGRES_PASSWORD=Stack@321
-            POSTGRES_DB=postgres
-
-            # Primary Database Configuration (FleetStack_db)
-            PRIMARY_DB_HOST=x-fleet-postgres
-            PRIMARY_DB_USER=postgres
-            PRIMARY_DB_PORT=5432
-            PRIMARY_DB_PASSWORD=Stack@321
-            PRIMARY_DB_NAME=FleetStack_db
-            PRIMARY_DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_db?schema=public"
-
-            # Logs Database Configuration (FleetStack_logs)
-            LOGS_DB_HOST=x-fleet-postgres
-            LOGS_DB_USER=postgres
-            LOGS_DB_PORT=5432
-            LOGS_DB_PASSWORD=Stack@321
-            LOGS_DB_NAME=FleetStack_logs
-            LOGS_DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_logs?schema=public"
-
-            # Address Database Configuration (FleetStack_Address)
-            ADDRESS_DB_HOST=x-fleet-postgres
-            ADDRESS_DB_USER=postgres
-            ADDRESS_DB_PORT=5432
-            ADDRESS_DB_PASSWORD=Stack@321
-            ADDRESS_DB_NAME=FleetStack_Address
-            ADDRESS_DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_Address?schema=public"
-
-            # Default DATABASE_URL for Prisma
-            DATABASE_URL="postgresql://postgres:Stack@321@x-fleet-postgres:5432/FleetStack_db?schema=public"
-            EOF
+            echo "🚀 Starting X-Fleet deployment..."
+            
+            # Navigate to application directory
+            cd /home/ubuntu/x-fleet
+            
+            # Pull latest changes from GitHub
+            echo "📥 Pulling latest code from GitHub..."
+            if [ -d ".git" ]; then
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              echo "❌ Not a git repository. Skipping git pull."
             fi
             
-            # Make deployment script executable and run it
-            chmod +x deploy.sh
-            ./deploy.sh
+            # Install/Update dependencies
+            echo "📦 Installing dependencies..."
+            npm install --production
+            
+            # Generate Prisma clients
+            echo "🔧 Generating Prisma clients..."
+            npx prisma generate --schema=prisma/primary.prisma
+            npx prisma generate --schema=prisma/logs.prisma
+            npx prisma generate --schema=prisma/address.prisma
+            
+            # Run database migrations
+            echo "🗄️ Running database migrations..."
+            npx prisma migrate deploy --schema=prisma/primary.prisma
+            npx prisma migrate deploy --schema=prisma/logs.prisma
+            npx prisma migrate deploy --schema=prisma/address.prisma
+            
+            # Build the application
+            echo "🔨 Building application..."
+            npm run build
+            
+            # Restart PM2 application
+            echo "🔄 Restarting application with PM2..."
+            pm2 restart ecosystem.config.js --update-env
+            
+            # Save PM2 configuration
+            pm2 save
+            
+            # Show PM2 status
+            echo "✅ Deployment completed! Current PM2 status:"
+            pm2 status
+            
+            echo "🎉 X-Fleet deployed successfully!"
 
-  # Notification Job
-  notify:
-    name: 📢 Notify
-    needs: [build, deploy]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: 📊 Deployment Status
+      - name: 🧪 Health Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          script: |
+            echo "🏥 Running health check..."
+            
+            # Wait for application to start
+            sleep 10
+            
+            # Check if application is responding
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001 || echo "000")
+            
+            if [ "$RESPONSE" = "200" ]; then
+              echo "✅ Health check passed! Application is running."
+              echo "🌍 Application URL: http://${{ secrets.EC2_HOST }}"
+              exit 0
+            else
+              echo "❌ Health check failed! HTTP status: $RESPONSE"
+              echo "📋 PM2 logs:"
+              pm2 logs --nostream --lines 50
+              exit 1
+            fi
+
+      - name: 📢 Deployment Status
+        if: always()
         run: |
-          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+          if [[ "${{ job.status }}" == "success" ]]; then
             echo "✅ Deployment succeeded!"
-            echo "🌍 Application URL: http://${{ secrets.EC2_HOST }}:3001"
-            echo "🗄️ Database URL: ${{ secrets.EC2_HOST }}:5432"
-          elif [[ "${{ needs.deploy.result }}" == "failure" ]]; then
+            echo "🌍 Application URL: http://${{ secrets.EC2_HOST }}"
+          else
             echo "❌ Deployment failed!"
             exit 1
-          elif [[ "${{ needs.deploy.result }}" == "skipped" ]]; then
-            echo "⏭️ Deployment skipped (not main branch)"
           fi

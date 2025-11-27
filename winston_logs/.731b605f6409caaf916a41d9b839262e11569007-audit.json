@@ -6,9 +6,9 @@
     "auditLog": "winston_logs\\.731b605f6409caaf916a41d9b839262e11569007-audit.json",
     "files": [
         {
-            "date": 1762069404518,
-            "name": "winston_logs\\exceptions-2025-11-02.log",
-            "hash": "4899a8b15e4edb248c4ce9d007b1e3f827a2901cb4e5ce76411d28f88a4c022d"
+            "date": 1764225060277,
+            "name": "winston_logs\\exceptions-2025-11-27.log",
+            "hash": "e797a79c91f59394993bfb490c149a90b803e43c78a62be9518fcca3474001c1"
         }
     ],
     "hashType": "sha256"
