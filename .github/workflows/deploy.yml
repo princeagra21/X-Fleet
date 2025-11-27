@@ -54,6 +54,10 @@ jobs:
             npx prisma migrate deploy --schema=prisma/logs.prisma
             npx prisma migrate deploy --schema=prisma/address.prisma
             
+            # Seed database (only if needed)
+            echo "🌱 Seeding database..."
+            npx prisma db seed --schema=prisma/primary.prisma || echo "Seed already exists or failed (non-critical)"
+            
             # Build the application
             echo "🔨 Building application..."
             npm run build
