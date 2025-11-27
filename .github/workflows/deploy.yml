@@ -40,7 +40,7 @@ jobs:
             
             # Install/Update dependencies
             echo "📦 Installing dependencies..."
-            npm install --production
+            npm ci
             
             # Generate Prisma clients
             echo "🔧 Generating Prisma clients..."
